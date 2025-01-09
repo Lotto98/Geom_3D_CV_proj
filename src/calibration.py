@@ -15,6 +15,7 @@ def get_frames_from_video(video_path:str, num_frames_to_select:int=20) -> List[n
 
     # Get total frame count
     frame_count = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
+    print(f"Total frames in the video: {frame_count}")
 
     # Select n evenly spaced frames
     frame_indices = np.linspace(0, frame_count-1, num_frames_to_select, dtype=int)
