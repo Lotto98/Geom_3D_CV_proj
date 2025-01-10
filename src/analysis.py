@@ -10,6 +10,8 @@ import multiprocessing
 
 from calibration import load_camera_parameters
 
+import matplotlib.pyplot as plt
+
 # Paths to the input videos
 static_path = "./data/cam1 - static/"
 moving_path = "./data/cam2 - moving light/"
@@ -88,6 +90,97 @@ def align_videos(video1_path, video2_path, audio_sample_rate=10000):
     video1.write_videofile(output1, codec="libx264", preset="ultrafast", threads=multiprocessing.cpu_count(), audio=False)
     video2.write_videofile(output2, codec="libx264", preset="ultrafast", threads=multiprocessing.cpu_count(), audio=False)
 
+def detect_fiducial_marker(image, threshold=50):
+    
+    image_grey = cv.cvtColor(image, cv.COLOR_RGB2GRAY)
+    
+    def find_nearest_point(points, point):
+        distances = np.linalg.norm(points - point, axis=1)
+        return points[np.argmin(distances)]
+
+    # Step 1: Otsu's Thresholding
+    image_grey = cv.GaussianBlur(image_grey, (5, 5), 5)
+    _, binary = cv.threshold(image_grey, threshold, 255, cv.THRESH_BINARY)
+    
+    cv.namedWindow("Binary", cv.WINDOW_NORMAL)
+    cv.resizeWindow("Binary", 640, 480)
+    cv.imshow("Binary", binary)
+
+    # Step 2: Morphological Operations (to remove noise)
+    kernel = cv.getStructuringElement(cv.MORPH_RECT, (3, 3))
+    binary = cv.morphologyEx(binary, cv.MORPH_CLOSE, kernel)
+
+    # Step 3: Find contours (hierarchical)
+    contours, hierarchy = cv.findContours(binary, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+
+    if hierarchy is None:
+        # should not happen
+        return detect_fiducial_marker(image, threshold=threshold+5) 
+
+    # Prepare list for detected markers
+    detected_markers = {}
+
+    for i, contour in enumerate(contours):
+
+        # Step 4: Simplify contour using Ramer-Douglas-Peucker algorithm
+        epsilon = 0.02 * cv.arcLength(contour, True)
+        approx = cv.approxPolyDP(contour, epsilon, True)
+
+        # Step 5: Filter quadrilateral shapes
+        if len(approx) == 4:
+            detected_markers[i]=approx.reshape(-1, 2)
+    
+    # Step 6: Validate with white dot (midpoint check)
+    valid_markers = []
+    valid_midpoints = []
+    for i, marker in detected_markers.items():
+        
+        if hierarchy[0][i][3] == -1 or detected_markers.get(hierarchy[0][i][3], None) is None: # No parent or parent is not a 4point marker
+            continue
+        
+        valid = False
+        for j in range(4):
+            # Midpoints of corresponding vertices
+            point_a = marker[j]
+            point_b = find_nearest_point(detected_markers[hierarchy[0][i][3]], point_a)
+            
+            midpoint = (point_a + point_b) // 2
+            
+            if binary[midpoint[1], midpoint[0]] == 255:
+                
+                if valid: # More than one white dot
+                    valid = False
+                    valid_midpoints.pop()
+                    break
+                
+                valid = True
+                valid_midpoints.append(midpoint)
+        
+        if valid:
+            valid_markers.append(marker)
+    
+    if len(valid_markers) > 1:
+        print("More than one marker found.")
+        return detect_fiducial_marker(image, threshold=threshold-5)
+    elif len(valid_markers) == 0:
+        print("No marker found.")
+        return detect_fiducial_marker(image, threshold=threshold+5)
+    else:
+        return valid_markers, valid_midpoints
+    
+def plot_fiducial_marker(image, markers, midpoints):
+    
+    for marker in markers:
+        cv.polylines(image, [marker], isClosed=True, color=(0, 255, 0), thickness=2)
+        for idx, corner in enumerate(marker):
+            cv.circle(image, tuple(corner), 5, (0, 0, 255), -1)
+            cv.putText(image, f"c{idx}", tuple(corner), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+        
+    for midpoint in midpoints:
+        cv.circle(image, tuple(midpoint), 10, (0, 0, 255), -1)
+        
+    return image
+
 
 filename = "coin1"
 
@@ -114,14 +207,7 @@ mtx, dist, rvecs, tvecs = load_camera_parameters("moving_light")
 
 print(os.path.exists(os.path.join("./data/", "marker.svg")))
 
-with open(os.path.join("./data/", "marker.svg"), "r") as f:
-    svg_data = f.read()
-
-png = svg2png(bytestring=svg_data)
-pil_img = Image.open(BytesIO(png)).convert('RGBA')
-marker = cv.cvtColor(np.array(pil_img), cv.COLOR_RGBA2BGRA)
-
-#cv.imshow("Marker", marker)
+frame_static_with_marker = None
 
 while cap_static.isOpened() and cap_moving.isOpened():
     ret_static, frame_static = cap_static.read()
@@ -130,22 +216,17 @@ while cap_static.isOpened() and cap_moving.isOpened():
     if not ret_static or not ret_moving:
         break
     
+    # Convert the frame to grayscale
+    if frame_static_with_marker is None:
+        markers_static, midpoints_static = detect_fiducial_marker(frame_static)
+    frame_static_with_marker = plot_fiducial_marker(frame_static, markers_static, midpoints_static)
+    
     frame_moving = cv.undistort(frame_moving, mtx, dist)
-    
-    img_g = frame_static.astype(np.float32)
-    img_g = img_g - np.mean(img_g)
-    conv = cv.filter2D( img_g, -1,  marker)
-    maxval = np.amax( conv )
-    
-    if maxval>5E6: # Correlation threshold
-        maxpos = np.unravel_index( np.argmax( conv ), conv.shape )
-    else:
-        maxpos=[-999,-999]
+    markers_moving, midpoints_moving = detect_fiducial_marker(frame_moving)
+    frame_moving = plot_fiducial_marker(frame_moving, markers_moving, midpoints_moving)
     
     
-    cv.rectangle( frame_static, (maxpos[1]-15, maxpos[0]-15),
-                         (maxpos[1]+15, maxpos[0]+15), 
-                         (255,0,0), 2 )
+    #cv.findHomography(markers_moving, markers_static)
     
     cv.imshow("Static", frame_static)
     cv.imshow("Moving", frame_moving)
