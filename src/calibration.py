@@ -8,8 +8,8 @@ from tqdm import tqdm
 def get_frames_from_video(video_path:str, num_frames_to_select:int=20) -> List[np.ndarray]:
     
     if not os.path.exists(video_path):
-        print("Video file does not exist.")
-        return
+        
+        raise "Video file does not exist."
     
     cap = cv.VideoCapture(video_path)
 
