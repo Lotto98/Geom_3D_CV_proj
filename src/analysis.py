@@ -343,11 +343,20 @@ def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=Fals
         #compute the light source
         moving_homography, _ = cv.findHomography(marker_moving, dest_points)
         
-        H = np.linalg.inv(mtx) @ moving_homography
-        r1 = H[:, 0] / np.linalg.norm(H[:, 0])
-        r2 = H[:, 1] / np.linalg.norm(H[:, 0])
-        t = H[:, 2] / np.linalg.norm(H[:, 0])
-        res = t / np.linalg.norm(t)
+        h0 = np.linalg.inv(mtx) @ moving_homography[:, 0]
+        h1 = np.linalg.inv(mtx) @ moving_homography[:, 1]
+        h2 = np.linalg.inv(mtx) @ moving_homography[:, 2]
+        
+        l = 2 / (np.linalg.norm(h0) + np.linalg.norm(h1))
+        
+        #r1 = l * h0
+        #r2 = l * h1
+        #r3 = np.cross(r1, r2)
+        #R = np.column_stack([r1, r2, r3])
+        t = l * h2
+        
+        res = t #-R.T @ t
+        res = res / np.linalg.norm(res)
         
         if np.sqrt(res[0]**2 + res[1]**2) > 1 or res[2]<0:
             print("Error")
@@ -387,7 +396,7 @@ def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=Fals
 if __name__ == "__main__":
     
     filename = "coin1"
-    #analysis(filename=filename)
+    analysis(filename=filename)
 
     results = np.load(f"./results_intermediate/{filename}.npz")
     MLIC = results['MLIC']
