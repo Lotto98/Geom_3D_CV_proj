@@ -9,6 +9,10 @@ from calibration import load_camera_parameters
 
 import matplotlib.pyplot as plt
 
+from tqdm import tqdm
+
+from scipy.interpolate import Rbf
+
 # Paths to the input videos
 static_path = "./data/cam1 - static/"
 moving_path = "./data/cam2 - moving light/"
@@ -227,96 +231,169 @@ def order_points_clockwise(points, midpoint):
 
     return sorted_points
 
-filename = "coin4"
-
-video1_path = os.path.join(static_path, filename+".mov")
-video2_path = os.path.join(moving_path, filename+".mp4")
-
-align_videos(video1_path, video2_path)
-
-a_video1_path = os.path.join(aligned_static_path, filename+".mov")
-a_video2_path = os.path.join(aligned_moving_path, filename+".mp4")
-
-cap_static = cv.VideoCapture(a_video1_path)
-cap_moving = cv.VideoCapture(a_video2_path)
-
-
-cv.namedWindow("Static", cv.WINDOW_NORMAL)
-cv.namedWindow("Moving", cv.WINDOW_NORMAL)
-cv.resizeWindow("Static", 640, 480)
-cv.resizeWindow("Moving", 640, 480)
-
-mtx, dist, rvecs, tvecs = load_camera_parameters("moving_light")
-
-first = True
-
-skipped_static = 0
-skipped_moving = 0
-
-while cap_static.isOpened() and cap_moving.isOpened():
-    ret_static, frame_static = cap_static.read()
-    ret_moving, frame_moving = cap_moving.read()
+def plot_light_source(u,v, image_size=200):
     
-    if not ret_static or not ret_moving:
-        break
+    u = int(((u + 1) / 2) * image_size)
+    v = int(((v + 1) / 2) * image_size)
     
-    if first:
-        marker_static, midpoint_static = detect_fiducial_marker(frame_static)
+    image = np.zeros((image_size, image_size, 1), dtype=np.uint8)
+    
+    cv.circle(image, (image_size//2, image_size//2), image_size//2, 255, 2)
+    
+    cv.circle(image, (u, v), 2, 255, -1)
+    cv.line(image, (image_size//2, image_size//2), (u, v), 255, 1)
+    
+    return image
+
+def plot_pixel(x, y, MLIC, L_poses):
+    plt.ylim(-1, 1)
+    plt.xlim(-1, 1)
+    plt.scatter(L_poses[:,0], L_poses[:,1], c=MLIC[:,y, x], cmap='viridis', s=1,)
+    plt.title(f"f({x}, {y}, ...)")
+    plt.xlabel("U")
+    plt.ylabel("V")
+    plt.colorbar()
+    plt.show()
+
+def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=False): 
+
+    video1_path = os.path.join(static_path, filename+".mov")
+    video2_path = os.path.join(moving_path, filename+".mp4")
+
+    align_videos(video1_path, video2_path)
+
+    a_video1_path = os.path.join(aligned_static_path, filename+".mov")
+    a_video2_path = os.path.join(aligned_moving_path, filename+".mp4")
+
+    cap_static = cv.VideoCapture(a_video1_path)
+    cap_moving = cv.VideoCapture(a_video2_path)
+
+    if debug:
+        cv.namedWindow("Static", cv.WINDOW_NORMAL)
+        cv.namedWindow("Moving", cv.WINDOW_NORMAL)
+        cv.resizeWindow("Static", 640, 480)
+        cv.resizeWindow("Moving", 640, 480)
+
+    mtx, dist, rvecs, tvecs = load_camera_parameters("moving_light")
+
+    first = True
+
+    skipped_static = 0
+    skipped_moving = 0
+
+    MLIC = []
+    L_poses = []
+
+    U_hat = None
+    V_hat = None
+
+    print(cap_static.get(cv.CAP_PROP_FRAME_COUNT), cap_moving.get(cv.CAP_PROP_FRAME_COUNT))
+    
+    bar = tqdm(total=cap_static.get(cv.CAP_PROP_FRAME_COUNT), desc="Processing frames... skipped static: 0 skipped moving: 0")
+
+    while cap_static.isOpened() or cap_moving.isOpened():
+        ret_static, frame_static = cap_static.read()
+        ret_moving, frame_moving = cap_moving.read()
         
-        first = False
-    
-    frame_moving = cv.undistort(frame_moving, mtx, dist)
-    marker_moving, midpoint_moving = detect_fiducial_marker(frame_moving, debug=False)
-    
-    if marker_static is None:
-        first = True
-        skipped_static += 1
-        print("skipped static", skipped_static)
-        continue
-    
-    if marker_moving is None:
-        skipped_moving += 1
-        print("skipped moving", skipped_moving)
-        continue
-    
-    cv.imshow("Static", plot_fiducial_marker(frame_static.copy(), marker_static, midpoint_static))
-    cv.imshow("Moving", plot_fiducial_marker(frame_moving.copy(), marker_moving, midpoint_moving))
-    
-    #crop static image using the marker
-    roi = cv.boundingRect(marker_static)
-    x, y, w, h = roi
-    coin = frame_static[y:y+h, x:x+w]
-    cv.imshow("Coin", coin)
-    
-    if cv.waitKey(1) & 0xFF == ord('q'):
-        break
-    
-    dest_points = np.array([[0, 0, 1], [w, 0, 1], [w, h, 1], [0, h, 1]], dtype=np.float32)
-    
-    moving_homography, bho = cv.findHomography(marker_moving, dest_points)
-    
-    retval, rotations, translations, normals = cv.decomposeHomographyMat(moving_homography, mtx)
-    
-    i = 0
-    while True:
-        rotation = rotations[i]
-        translation = translations[i]
-        
-        res = (-rotation.T @ translation)
-        res = res / np.linalg.norm(res)
-    
-        if res[2] < 0:
-            i += 1
-        else:
+        if not ret_static or not ret_moving:
             break
+        
+        if first:
+            marker_static, midpoint_static = detect_fiducial_marker(frame_static, debug=debug_static)
+            first = False
+        
+        frame_moving = cv.undistort(frame_moving, mtx, dist)
+        marker_moving, midpoint_moving = detect_fiducial_marker(frame_moving, debug=debug_moving)
+        
+        if marker_static is None:
+            first = True
+            skipped_static += 1
+            bar.update(1)
+            bar.desc = f"Processing frames... skipped static: {skipped_static} skipped moving: {skipped_moving}"
+            continue
+        
+        if marker_moving is None:
+            skipped_moving += 1
+            bar.update(1)
+            bar.desc = f"Processing frames... skipped static: {skipped_static} skipped moving: {skipped_moving}"
+            continue
+        
+        #crop static image using the marker
+        x, y, w, h = cv.boundingRect(marker_static)
+
+        #crop the rectified static image
+        dest_points = np.array([[0, 0, 1], [w, 0, 1], [w, h, 1], [0, h, 1]], dtype=np.float32)
+        static_homography, _ = cv.findHomography(marker_static, dest_points)
+        
+        coin = cv.warpPerspective(frame_static, static_homography, (w, h))
+        
+        #convert to YUV and get the Y channel
+        coin_yuv = cv.cvtColor(coin, cv.COLOR_BGR2YUV)
+        coin_y = coin_yuv[:,:,0]
+        MLIC.append(coin_y)
+        
+        #compute mean U and V
+        if U_hat is None and V_hat is None:
+            U_hat = coin_yuv[:,:,1]
+            V_hat = coin_yuv[:,:,2]
+        else:
+            U_hat += coin_yuv[:,:,1]
+            V_hat += coin_yuv[:,:,2]
+        
+        #compute the light source
+        moving_homography, _ = cv.findHomography(marker_moving, dest_points)
+        
+        H = np.linalg.inv(mtx) @ moving_homography
+        r1 = H[:, 0] / np.linalg.norm(H[:, 0])
+        r2 = H[:, 1] / np.linalg.norm(H[:, 0])
+        t = H[:, 2] / np.linalg.norm(H[:, 0])
+        res = t / np.linalg.norm(t)
+        
+        if np.sqrt(res[0]**2 + res[1]**2) > 1 or res[2]<0:
+            print("Error")
+        
+        L_poses.append(res)
+        
+        if debug:
+            cv.imshow("Static", plot_fiducial_marker(frame_static.copy(), marker_static, midpoint_static))
+            cv.imshow("Moving", plot_fiducial_marker(frame_moving.copy(), marker_moving, midpoint_moving))
+            cv.imshow("Coin", coin)
+            cv.imshow("Light source", plot_light_source(res[0], res[1]))
+        
+            if cv.waitKey(1) & 0xFF == ord('q'):
+                break
+        
+        bar.update(1)
+
+    U_hat = U_hat.astype(float) * 1/len(MLIC)
+    V_hat = V_hat.astype(float) * 1/len(MLIC)
+
+    MLIC = np.array(MLIC)
+    L_poses = np.array(L_poses)
     
-    if res[2] < 0:
-        print(res)
+    cap_static.release()
+    cap_moving.release()
+    cv.destroyAllWindows()
     
-    #warped = cv.warpPerspective( frame_moving, moving_homography[0], (500,500) )
-    #cv.imshow("warped", warped )
+    result_path = f"./results_intermediate"
+    os.makedirs(result_path, exist_ok=True)
     
-cap_static.release()
-cap_moving.release()
-cv.destroyAllWindows()
+    result_path = os.path.join(result_path, f"{filename}.npz")
+    np.savez(result_path, MLIC=MLIC, L_poses=L_poses)
+    
+    return MLIC, L_poses, U_hat, V_hat
+
+
+if __name__ == "__main__":
+    
+    filename = "coin1"
+    #analysis(filename=filename)
+
+    results = np.load(f"./results_intermediate/{filename}.npz")
+    MLIC = results['MLIC']
+    L_poses = results['L_poses']
+
+    plot_pixel(109, 200, MLIC, L_poses)
+    
+    #Rbf = Rbf(y=L_poses[:,:2], d=MLIC, kernel='linear')
 
