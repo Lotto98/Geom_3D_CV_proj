@@ -320,46 +320,50 @@ def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=Fals
         
         #crop static image using the marker
         x, y, w, h = cv.boundingRect(marker_static)
-
-        #crop the rectified static image
-        dest_points = np.array([[0, 0, 1], [w, 0, 1], [w, h, 1], [0, h, 1]], dtype=np.float32)
-        static_homography, _ = cv.findHomography(marker_static, dest_points)
+        marker_reference_points = np.array([[0, 0, 1], [0, h, 1], [w, h, 1], [w, 0, 1]], dtype=np.float32)
+        static_homography, _ = cv.findHomography(marker_static, marker_reference_points)
         
         coin = cv.warpPerspective(frame_static, static_homography, (w, h))
+        
+        #coin = cv.flip(coin, 0, coin)
         
         #convert to YUV and get the Y channel
         coin_yuv = cv.cvtColor(coin, cv.COLOR_BGR2YUV)
         coin_y = coin_yuv[:,:,0]
         MLIC.append(coin_y)
         
-        #compute mean U and V
-        if U_hat is None and V_hat is None:
-            U_hat = coin_yuv[:,:,1]
-            V_hat = coin_yuv[:,:,2]
-        else:
-            U_hat += coin_yuv[:,:,1]
-            V_hat += coin_yuv[:,:,2]
-        
         #compute the light source
-        moving_homography, _ = cv.findHomography(marker_moving, dest_points)
+        marker_reference_points = np.array([[0, 0, 1], [0, 1, 1] , [1, 1, 1], [1, 0, 1]], dtype=np.float32)
+        moving_homography, _ = cv.findHomography(marker_reference_points, marker_moving)
         
-        h0 = np.linalg.inv(mtx) @ moving_homography[:, 0]
-        h1 = np.linalg.inv(mtx) @ moving_homography[:, 1]
-        h2 = np.linalg.inv(mtx) @ moving_homography[:, 2]
+        inv_K__H = np.linalg.inv(mtx) @ moving_homography
+        r1 = inv_K__H[:, 0]
+        r2 = inv_K__H[:, 1]
+        t = inv_K__H[:, 2]
         
-        l = 2 / (np.linalg.norm(h0) + np.linalg.norm(h1))
+        alpha = 2 / (np.linalg.norm(r1) + np.linalg.norm(r2))
         
-        #r1 = l * h0
-        #r2 = l * h1
-        #r3 = np.cross(r1, r2)
-        #R = np.column_stack([r1, r2, r3])
-        t = l * h2
+        RT = (inv_K__H / alpha)
         
-        res = t #-R.T @ t
+        r1 = RT[:, 0]
+        r2 = RT[:, 1]
+        t = RT[:, 2]
+        r3 = np.cross(r1, r2)
+        Q = np.column_stack([r1, r2, r3])
+        
+        U, _, Vt = np.linalg.svd(Q)
+        R = U @ Vt
+        
+        res = -R.T @ t
         res = res / np.linalg.norm(res)
         
-        if np.sqrt(res[0]**2 + res[1]**2) > 1 or res[2]<0:
-            print("Error")
+        #print(res)
+        
+        if np.sqrt(res[0]**2 + res[1]**2) > 1:
+            print("Error: Light source outside the unit circle")
+        
+        if res[2] < 0:
+            print("Error: Light source behind the camera")
         
         L_poses.append(res)
         
@@ -373,9 +377,6 @@ def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=Fals
                 break
         
         bar.update(1)
-
-    U_hat = U_hat.astype(float) * 1/len(MLIC)
-    V_hat = V_hat.astype(float) * 1/len(MLIC)
 
     MLIC = np.array(MLIC)
     L_poses = np.array(L_poses)
@@ -402,7 +403,7 @@ if __name__ == "__main__":
     MLIC = results['MLIC']
     L_poses = results['L_poses']
 
-    plot_pixel(109, 200, MLIC, L_poses)
+    #plot_pixel(109, 200, MLIC, L_poses)
     
     #Rbf = Rbf(y=L_poses[:,:2], d=MLIC, kernel='linear')
 
