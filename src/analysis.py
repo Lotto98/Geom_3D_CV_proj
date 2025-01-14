@@ -301,7 +301,7 @@ def plot_light_source(u,v, image_size=200):
     cv.circle(image, (u, v), 2, 255, -1)
     cv.line(image, (image_size//2, image_size//2), (u, v), 255, 1)
     
-    image = cv.flip(image, 0)
+    #image = cv.flip(image, 0)
     
     return image
 
@@ -422,11 +422,11 @@ def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=Fals
         
         #crop static image using the marker
         x, y, w, h = cv.boundingRect(marker_static)
-        marker_reference_points = np.array([[0, 0, 1], [0, h, 1], [w, h, 1], [w, 0, 1]], dtype=np.float32)
-        static_homography, _ = cv.findHomography(marker_static, marker_reference_points)
+        marker_reference_points = np.array([[0, 0, 1], [w, 0, 1],[w, h, 1], [0, h, 1]  ], dtype=np.float32)
+        static_homography, _ = cv.findHomography(marker_static.astype(np.float32), marker_reference_points)
         
-        coin = cv.warpPerspective(frame_static, static_homography, (w, h))
-        coin = cv.flip(coin, 0) 
+        coin = cv.warpPerspective(frame_static, static_homography, (w,h))
+        #coin = cv.flip(coin, 0) 
         
         #convert to YUV and get the Y channel
         coin_yuv = cv.cvtColor(coin, cv.COLOR_BGR2YUV)
@@ -435,7 +435,7 @@ def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=Fals
         
         #compute the light source
         x, y, w, h = cv.boundingRect(marker_moving)
-        marker_reference_points = np.array([[0, 0, 1], [0, h, 1], [w, h, 1], [w, 0, 1]], dtype=np.float32)
+        #marker_reference_points = np.array([[0, 0, 1], [0, w, 1], [w, h, 1], [0, h, 1] ], dtype=np.float32)
         
         res = getLightPose(objectPoints=marker_reference_points,
                             imagePoints=marker_moving.astype(np.float32),
@@ -471,13 +471,13 @@ def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=Fals
 if __name__ == "__main__":
     
     filename = "coin1"
-    #analysis(filename=filename)
+    analysis(filename=filename)
 
     results = np.load(f"./results_intermediate/{filename}.npz")
     MLIC = results['MLIC']
     L_poses = results['L_poses']
 
-    plot_pixel(109, 200, MLIC, L_poses)
+    #plot_pixel(109, 200, MLIC, L_poses)
     
     #Rbf = Rbf(y=L_poses[:,:2], d=MLIC, kernel='linear')
 
