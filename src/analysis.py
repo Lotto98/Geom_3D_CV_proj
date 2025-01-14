@@ -301,6 +301,8 @@ def plot_light_source(u,v, image_size=200):
     cv.circle(image, (u, v), 2, 255, -1)
     cv.line(image, (image_size//2, image_size//2), (u, v), 255, 1)
     
+    image = cv.flip(image, 0)
+    
     return image
 
 def plot_pixel(x, y, MLIC, L_poses):
@@ -313,35 +315,32 @@ def plot_pixel(x, y, MLIC, L_poses):
     plt.colorbar()
     plt.show()
 
-def getLightPose(objectPoints, imagePoints, cameraMatrix, method="PnP"):
+def getLightPose(objectPoints, imagePoints, cameraMatrix, dist, method="PnP"):
     
-    if method=="Pnp":
-        retval, R, t = cv.solvePnP(objectPoints, imagePoints, cameraMatrix)
-    else:
-        moving_homography, _ = cv.findHomography(objectPoints, imagePoints)
-            
-        inv_K__H = np.linalg.inv(cameraMatrix) @ moving_homography
-        r1 = inv_K__H[:, 0]
-        r2 = inv_K__H[:, 1]
-        t = inv_K__H[:, 2]
+    moving_homography, _ = cv.findHomography(objectPoints, imagePoints)
         
-        alpha = 2 / (np.linalg.norm(r1) + np.linalg.norm(r2))
-        
-        RT = (inv_K__H / alpha)
-        
-        r1 = RT[:, 0]
-        r2 = RT[:, 1]
-        t = RT[:, 2]
-        r3 = np.cross(r1, r2)
-        Q = np.column_stack([r1, r2, r3])
-        
-        U, _, Vt = np.linalg.svd(Q)
-        R = U @ Vt
+    inv_K__H = np.linalg.inv(cameraMatrix) @ moving_homography
+    r1 = inv_K__H[:, 0]
+    r2 = inv_K__H[:, 1]
+    t = inv_K__H[:, 2]
+    
+    alpha = 2 / (np.linalg.norm(r1) + np.linalg.norm(r2))
+    
+    RT = (inv_K__H / alpha)
+    
+    r1 = RT[:, 0]
+    r2 = RT[:, 1]
+    t = RT[:, 2]
+    r3 = np.cross(r1, r2)
+    Q = np.column_stack([r1, r2, r3])
+    
+    U, _, Vt = np.linalg.svd(Q)
+    R = U @ Vt
     
     res = -R.T @ t
     res = res / np.linalg.norm(res)
     
-    #print(res)
+    print(res)
     
     if np.sqrt(res[0]**2 + res[1]**2) > 1:
         print("Error: Light source outside the unit circle")
@@ -439,8 +438,8 @@ def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=Fals
         marker_reference_points = np.array([[0, 0, 1], [0, h, 1], [w, h, 1], [w, 0, 1]], dtype=np.float32)
         
         res = getLightPose(objectPoints=marker_reference_points,
-                            imagePoints=marker_moving,
-                            cameraMatrix=mtx)
+                            imagePoints=marker_moving.astype(np.float32),
+                            cameraMatrix=mtx, dist=dist)
         
         L_poses.append(res)
         
@@ -472,13 +471,13 @@ def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=Fals
 if __name__ == "__main__":
     
     filename = "coin1"
-    analysis(filename=filename)
+    #analysis(filename=filename)
 
     results = np.load(f"./results_intermediate/{filename}.npz")
     MLIC = results['MLIC']
     L_poses = results['L_poses']
 
-    #plot_pixel(109, 200, MLIC, L_poses)
+    plot_pixel(109, 200, MLIC, L_poses)
     
     #Rbf = Rbf(y=L_poses[:,:2], d=MLIC, kernel='linear')
 
