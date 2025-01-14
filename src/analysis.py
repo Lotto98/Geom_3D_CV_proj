@@ -8,6 +8,7 @@ import multiprocessing
 from calibration import load_camera_parameters
 
 import matplotlib.pyplot as plt
+import librosa
 
 from tqdm import tqdm
 
@@ -21,25 +22,59 @@ moving_path = "./data/cam2 - moving light/"
 aligned_static_path = "./data_aligned/cam1 - static/"
 aligned_moving_path = "./data_aligned/cam2 - moving light/"
 
-def align_videos(video1_path, video2_path, audio_sample_rate=10000):
-    
-    def extract_audio_from_video(video_path, sr):
-        """Extract and load audio from a video file."""
+def align_videos(video1_path, video2_path, audio_sr=10000):
+
+    def extract_audio_from_video(video_path):
+        """
+        Extract and load audio from a video file.
+
+        Parameters:
+        - video_path: str, path to the video file.
+        - sr: int, target sample rate for the audio.
+
+        Returns:
+        - audio: ndarray, extracted mono audio signal at the specified sample rate.
+        """
+        # Load the video file
         video = mp.VideoFileClip(video_path)
-        audio = video.audio.to_soundarray(fps=sr)
-        # Ensure audio is at least 2D, convert to mono
-        if audio.ndim == 1:
-            return audio  # Already mono
-        return np.mean(audio, axis=1)  # Convert stereo to mono
+        audio = video.audio.to_soundarray()
+
+        # Convert to mono if the audio is stereo
+        if audio.ndim > 1:
+            audio = np.mean(audio, axis=1)  # Average the channels to get mono
+
+        return audio, video.audio.fps
+
 
     def find_offset(audio1, audio2, sr):
-        """Find the time offset between two audio tracks using cross-correlation."""
-        #use the first 15 seconds of the audio
-        correlation = np.correlate(audio1[:15*sr], audio2[:15*sr], mode="full")
-        delay = np.argmax(correlation) - 15*sr
+        """
+        Find the time offset between two audio tracks using cross-correlation.
+
+        Parameters:
+        - audio1: ndarray, first audio signal.
+        - audio2: ndarray, second audio signal.
+        - sr: int, sample rate of the audio signals.
+
+        Returns:
+        - time_offset: float, time offset in seconds where audio2 should be shifted
+                    to align with audio1.
+        """
+        # Ensure audio1 and audio2 have the same length for comparison
+        max_len = min(len(audio1), len(audio2), 15 * sr)  # Limit to the first 15 seconds
+        audio1 = audio1[:max_len]
+        audio2 = audio2[:max_len]
+
+        # Compute cross-correlation
+        correlation = np.correlate(audio1, audio2, mode="full")
+
+        # Find the index of the maximum correlation
+        delay = np.argmax(correlation) - (len(audio2) - 1)  # Adjust to center alignment
+
+        # Convert delay to time offset in seconds
         time_offset = delay / sr
+
         return time_offset
-    
+
     def crop_video(video_path, offset):
         """Crop video based on the offset."""
         video = mp.VideoFileClip(video_path)
@@ -57,19 +92,22 @@ def align_videos(video1_path, video2_path, audio_sample_rate=10000):
         return
     
     # Extract audio tracks
-    audio1 = extract_audio_from_video(video1_path, audio_sample_rate)
-    audio2 = extract_audio_from_video(video2_path, audio_sample_rate)
+    audio1, sr1 = extract_audio_from_video(video1_path)
+    audio2, sr2 = extract_audio_from_video(video2_path)
 
+    audio1 = librosa.resample(audio1, orig_sr=sr1, target_sr=audio_sr)
+    audio2 = librosa.resample(audio2, orig_sr=sr2, target_sr=audio_sr)
+    
     # Find time offset
-    offset = find_offset(audio1, audio2, audio_sample_rate)
+    offset = find_offset(audio1, audio2, audio_sr)
     print(f"Time offset: {offset:.2f} seconds")
     
     if offset > 0:
-        video1 = mp.VideoFileClip(video1_path)
-        video2 = crop_video(video2_path, offset)
-    else:
-        video1 = crop_video(video1_path, -offset)
+        video1 = crop_video(video1_path, offset)
         video2 = mp.VideoFileClip(video2_path)
+    else:
+        video1 = mp.VideoFileClip(video1_path)
+        video2 = crop_video(video2_path, offset) 
 
     #set fps to 30
     video1 = video1.with_fps(30)
@@ -88,8 +126,8 @@ def align_videos(video1_path, video2_path, audio_sample_rate=10000):
     output1 = os.path.join(aligned_static_path, video1_path.split('/')[-1])
     output2 = os.path.join(aligned_moving_path, video2_path.split('/')[-1])
     
-    video1.write_videofile(output1, codec="libx264", preset="ultrafast", threads=multiprocessing.cpu_count(), audio=False)
-    video2.write_videofile(output2, codec="libx264", preset="ultrafast", threads=multiprocessing.cpu_count(), audio=False)
+    video1.write_videofile(output1, codec="libx264", preset="ultrafast", threads=multiprocessing.cpu_count(), audio=True)
+    video2.write_videofile(output2, codec="libx264", preset="ultrafast", threads=multiprocessing.cpu_count(), audio=True)
 
 def detect_fiducial_marker(image, threshold=100, debug=False):
     
@@ -193,15 +231,35 @@ def find_nearest_point(points, point):
     return points[np.argmin(distances)]
     
 def plot_fiducial_marker(image, marker, midpoint):
-        
+    
+    colors = [
+        (0, 0, 225),   # Red
+        (255, 0, 255), # Magenta
+        (255, 0, 0),   # Blue
+        (0, 102, 255) #Orange
+    ]
+    
     #plot the midpoint
     cv.circle(image, tuple(midpoint), 10, (0, 0, 255), -1)
     
     #plot the marker
     cv.polylines(image, [marker], isClosed=True, color=(0, 255, 0), thickness=6)
-    for idx, corner in enumerate(marker):
-        cv.circle(image, tuple(corner), 7, (0, 0, 255), -1)
-        cv.putText(image, f"c{idx}", tuple(corner), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+    for idx, (corner, color) in enumerate(zip(marker, colors)):
+        
+        cv.circle(image, tuple(corner), 7, color, -1)
+        
+        coordinate_text = tuple(corner)
+        
+        if idx==0:
+            coordinate_text = (coordinate_text[0]+5, coordinate_text[1]-5)
+        elif idx == 1:
+            coordinate_text = (coordinate_text[0]+5, coordinate_text[1]+15)
+        elif idx == 2:
+            coordinate_text = (coordinate_text[0]-25, coordinate_text[1]+20)
+        elif idx == 3:
+            coordinate_text = (coordinate_text[0]-25, coordinate_text[1]-10)
+        
+        cv.putText(image, f"c{idx}", coordinate_text, cv.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
         
     return image
 
@@ -254,6 +312,44 @@ def plot_pixel(x, y, MLIC, L_poses):
     plt.ylabel("V")
     plt.colorbar()
     plt.show()
+
+def getLightPose(objectPoints, imagePoints, cameraMatrix, method="PnP"):
+    
+    if method=="Pnp":
+        retval, R, t = cv.solvePnP(objectPoints, imagePoints, cameraMatrix)
+    else:
+        moving_homography, _ = cv.findHomography(objectPoints, imagePoints)
+            
+        inv_K__H = np.linalg.inv(cameraMatrix) @ moving_homography
+        r1 = inv_K__H[:, 0]
+        r2 = inv_K__H[:, 1]
+        t = inv_K__H[:, 2]
+        
+        alpha = 2 / (np.linalg.norm(r1) + np.linalg.norm(r2))
+        
+        RT = (inv_K__H / alpha)
+        
+        r1 = RT[:, 0]
+        r2 = RT[:, 1]
+        t = RT[:, 2]
+        r3 = np.cross(r1, r2)
+        Q = np.column_stack([r1, r2, r3])
+        
+        U, _, Vt = np.linalg.svd(Q)
+        R = U @ Vt
+    
+    res = -R.T @ t
+    res = res / np.linalg.norm(res)
+    
+    #print(res)
+    
+    if np.sqrt(res[0]**2 + res[1]**2) > 1:
+        print("Error: Light source outside the unit circle")
+    
+    if res[2] < 0:
+        print("Error: Light source behind the camera")
+    
+    return res
 
 def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=False): 
 
@@ -318,14 +414,20 @@ def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=Fals
             bar.desc = f"Processing frames... skipped static: {skipped_static} skipped moving: {skipped_moving}"
             continue
         
+        if debug:
+            cv.imshow("Static", plot_fiducial_marker(frame_static, marker_static, midpoint_static))
+            cv.imshow("Moving", plot_fiducial_marker(frame_moving, marker_moving, midpoint_moving))
+        
+            if cv.waitKey(1) & 0xFF == ord('q'):
+                break
+        
         #crop static image using the marker
         x, y, w, h = cv.boundingRect(marker_static)
         marker_reference_points = np.array([[0, 0, 1], [0, h, 1], [w, h, 1], [w, 0, 1]], dtype=np.float32)
         static_homography, _ = cv.findHomography(marker_static, marker_reference_points)
         
         coin = cv.warpPerspective(frame_static, static_homography, (w, h))
-        
-        #coin = cv.flip(coin, 0, coin)
+        coin = cv.flip(coin, 0) 
         
         #convert to YUV and get the Y channel
         coin_yuv = cv.cvtColor(coin, cv.COLOR_BGR2YUV)
@@ -333,46 +435,19 @@ def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=Fals
         MLIC.append(coin_y)
         
         #compute the light source
-        marker_reference_points = np.array([[0, 0, 1], [0, 1, 1] , [1, 1, 1], [1, 0, 1]], dtype=np.float32)
-        moving_homography, _ = cv.findHomography(marker_reference_points, marker_moving)
+        x, y, w, h = cv.boundingRect(marker_moving)
+        marker_reference_points = np.array([[0, 0, 1], [0, h, 1], [w, h, 1], [w, 0, 1]], dtype=np.float32)
         
-        inv_K__H = np.linalg.inv(mtx) @ moving_homography
-        r1 = inv_K__H[:, 0]
-        r2 = inv_K__H[:, 1]
-        t = inv_K__H[:, 2]
-        
-        alpha = 2 / (np.linalg.norm(r1) + np.linalg.norm(r2))
-        
-        RT = (inv_K__H / alpha)
-        
-        r1 = RT[:, 0]
-        r2 = RT[:, 1]
-        t = RT[:, 2]
-        r3 = np.cross(r1, r2)
-        Q = np.column_stack([r1, r2, r3])
-        
-        U, _, Vt = np.linalg.svd(Q)
-        R = U @ Vt
-        
-        res = -R.T @ t
-        res = res / np.linalg.norm(res)
-        
-        #print(res)
-        
-        if np.sqrt(res[0]**2 + res[1]**2) > 1:
-            print("Error: Light source outside the unit circle")
-        
-        if res[2] < 0:
-            print("Error: Light source behind the camera")
+        res = getLightPose(objectPoints=marker_reference_points,
+                            imagePoints=marker_moving,
+                            cameraMatrix=mtx)
         
         L_poses.append(res)
         
         if debug:
-            cv.imshow("Static", plot_fiducial_marker(frame_static.copy(), marker_static, midpoint_static))
-            cv.imshow("Moving", plot_fiducial_marker(frame_moving.copy(), marker_moving, midpoint_moving))
             cv.imshow("Coin", coin)
             cv.imshow("Light source", plot_light_source(res[0], res[1]))
-        
+            
             if cv.waitKey(1) & 0xFF == ord('q'):
                 break
         
