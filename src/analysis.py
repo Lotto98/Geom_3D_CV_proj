@@ -11,8 +11,7 @@ import matplotlib.pyplot as plt
 import librosa
 
 from tqdm import tqdm
-
-from scipy.interpolate import Rbf
+import subprocess
 
 # Paths to the input videos
 static_path = "./data/cam1 - static/"
@@ -477,14 +476,54 @@ def load_results(filename):
     
     return MLIC, L_poses, U_hat, V_hat
 
+def plot_pixel(x, y, MLIC, L_poses, regular_grids={}):
+    fig, ax = plt.subplots(1, 2)
+    ax[0].set_ylim(-1, 1)
+    ax[0].set_xlim(-1, 1)
+    scatter = ax[0].scatter(L_poses[:, 0], L_poses[:, 1], c=MLIC[:, y, x], cmap='viridis', s=2)
+    ax[0].set_title(f"f({x}, {y}, ...)")
+    ax[0].set_xlabel("U")
+    ax[0].set_ylabel("V")
+    fig.colorbar(scatter, ax=ax[0])
+
+    if regular_grids != {}:
+        ax[1].matshow(regular_grids[(x, y)])
+        ax[1].set_title("Interpolation")
+    else:
+        ax[1].set_title("No interpolation")
+    ax[1].axis('off')
+    plt.gca().invert_yaxis()
+
+    plt.show()
+
 if __name__ == "__main__":
     
-    filename = "coin2"
-    analysis(filename=filename)
-
-    MLIC, L_poses, U_hat, V_hat = load_results(filename)
-
-    from interpolation import plot_pixel
+    filename = "coin1"
+    regular_grid_dim = (100, 100)
+    resize_dim = (64, 64)
+    nprocesses = -1
+    method = "RBF"
     
-    plot_pixel(109, 200, MLIC, L_poses)
+    #analysis(filename=filename, debug=False, debug_moving=False, debug_static=False)
+    
+    execution_string = f"python3 src/interpolation.py"
+    execution_string += f" --filename {filename}"
+    execution_string += f" --coin_dim {resize_dim[0]} {resize_dim[1]}"
+    execution_string += f" --regular_grid_dim {regular_grid_dim[0]} {regular_grid_dim[1]}"
+    execution_string += f" --method {method}"
+    execution_string += f" --nprocesses {nprocesses}"
+    
+    print(execution_string)
+    if nprocesses == -1 or nprocesses > 1:
+        execution_string = f"export OMP_NUM_THREADS=1; export MKL_NUM_THREADS=1; {execution_string}"
+    subprocess.call(execution_string, shell=True)
+    
+    MLIC, L_poses, U_hat, V_hat = load_results(filename)
+    
+    MLIC_resized = [cv.resize(coin, (200, 200)) for coin in MLIC]
+    MLIC_resized = np.array(MLIC_resized)
+    
+    regular_grids = np.load(f"./results/{filename}.npy", allow_pickle=True).item()
+    
+    plot_pixel(10, 20, MLIC_resized, L_poses, regular_grids=regular_grids)
 
