@@ -21,15 +21,6 @@ def process_pixel_RBF(args):
     
     return x, y, regular_grid
 
-def process_pixel_poly(args):
-    x, y, MLIC_resized, L_poses, directions_uv, directions_grid, regular_grid_dim = args
-    model_xy = np.polyfit(L_poses[:, 0], L_poses[:, 1], MLIC_resized[:, y, x], function='linear', smooth=1, )
-    values = model_xy(directions_uv[:, 0], directions_uv[:, 1])
-    regular_grid = np.zeros(regular_grid_dim)
-    regular_grid[directions_grid[:, 1], directions_grid[:, 0]] = values
-    
-    return x, y, regular_grid
-
 def interpolation(filename, coin_dim, regular_grid_dim, method, nprocesses=-1):
     
     regular_grids = {}
@@ -77,7 +68,7 @@ def interpolation(filename, coin_dim, regular_grid_dim, method, nprocesses=-1):
     results_path = f"./results/{method}"
     os.makedirs(results_path, exist_ok=True)
     
-    np.savez (os.path.join(results_path, f"{filename}.npy"), regular_grids)
+    np.savez_compressed(os.path.join(results_path, f"{filename}.npz"), regular_grids)
 
 if __name__ == "__main__":
     
