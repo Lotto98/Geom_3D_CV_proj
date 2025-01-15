@@ -22,27 +22,28 @@ def mouse_callback(event,x,y,flags,param):
     
     y = 200 - y -1
     
-    if (x - 100)**2 + (y - 100)**2 <= 100**2:
+    #if (x - 100)**2 + (y - 100)**2 <= 100**2:
         
-        if event == cv.EVENT_LBUTTONDOWN:
-            drawing = True
+    if event == cv.EVENT_LBUTTONDOWN:
+        drawing = True
+        plot(x, y)
+        x_inp = x
+        y_inp = y
+    elif event == cv.EVENT_MOUSEMOVE:
+        if drawing == True:
             plot(x, y)
             x_inp = x
             y_inp = y
-        elif event == cv.EVENT_MOUSEMOVE:
-            if drawing == True:
-                plot(x, y)
-                x_inp = x
-                y_inp = y
-        elif event == cv.EVENT_LBUTTONUP:
-            drawing = False
-            plot(x, y)
-            x_inp = x
-            y_inp = y
+    elif event == cv.EVENT_LBUTTONUP:
+        drawing = False
+        plot(x, y)
+        x_inp = x
+        y_inp = y
 
 
 def relighting():
-    regular_grids = np.load("regular_grids.npy", allow_pickle=True).item()
+    regular_grids = np.load("./results/RBF/coin1.npz", allow_pickle=True)
+    regular_grids = regular_grids["arr_0"].item()
     regular_grid_dim = (100, 100)
     
     # Load data
@@ -58,10 +59,10 @@ def relighting():
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
         
-        coin = np.zeros((32, 32, 1), dtype=np.uint8)
+        coin = np.zeros((64, 64, 1), dtype=np.uint8)
         
-        for x in range(32):
-            for y in range(32):
+        for x in range(64):
+            for y in range(64):
                 
                 regular_grid = regular_grids[(x, y)]
                 
@@ -69,9 +70,9 @@ def relighting():
                 
                 x_grid, y_grid = nearest_point
                 
-                coin[x,y] = regular_grid[x_grid, y_grid]
+                coin[y,x] = regular_grid[x_grid, y_grid]
         
-        cv.imshow("Coin", coin)
+        cv.imshow("Coin", cv.flip(cv.resize(coin, (512,512)),1))
 
 if __name__ == "__main__":
     relighting()
