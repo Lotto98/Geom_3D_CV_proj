@@ -46,7 +46,7 @@ def process_pixel(args):
 
 def interpolation():
     filename = "coin1"
-    resize_dim = (128, 128)
+    resize_dim = (32, 32)
     regular_grid_dim = (100, 100)
 
     regular_grids = {}
@@ -98,7 +98,7 @@ if __name__ == "__main__":
 
     MLIC_resized = []
     for coin in MLIC:
-        coin = cv.resize(coin, (16, 16))
+        coin = cv.resize(coin, (32, 32))
         MLIC_resized.append(coin)
     MLIC_resized = np.array(MLIC_resized)
 
