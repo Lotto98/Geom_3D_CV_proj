@@ -6,6 +6,8 @@ from tqdm import tqdm
 import multiprocessing
 import matplotlib.pyplot as plt
 
+import os
+
 def fit_model(x, y, MLIC_resized, L_poses):
     from scipy.interpolate import Rbf
     model = Rbf(L_poses[:, 0], L_poses[:, 1], MLIC_resized[:, y, x], function='linear', smooth=1)
@@ -44,7 +46,7 @@ def process_pixel(args):
 
 def interpolation():
     filename = "coin1"
-    resize_dim = (32, 32)
+    resize_dim = (128, 128)
     regular_grid_dim = (100, 100)
 
     regular_grids = {}
@@ -81,12 +83,15 @@ def interpolation():
         regular_grids[(x, y)] = regular_grid
 
     # Save regular grids
-    np.save("regular_grids.npy", regular_grids)
+    results_path = "./results"
+    os.makedirs(results_path, exist_ok=True)
+    
+    np.save(os.path.join(results_path, f"{filename}.npy"), regular_grids)
 
 if __name__ == "__main__":
     interpolation()
 
-    regular_grids = np.load("regular_grids.npy", allow_pickle=True).item()
+    regular_grids = np.load("coin1.npy", allow_pickle=True).item()
 
     # Load data
     MLIC, L_poses, U_hat, V_hat = load_results("coin1")
