@@ -289,10 +289,11 @@ def order_points_clockwise(points, midpoint):
 
     return sorted_points
 
-def plot_light_source(u,v, image_size=200):
+def plot_light_source(u,v, convert=True, image_size=200):
     
-    u = int(((u + 1) / 2) * (image_size-1))
-    v = int(((v + 1) / 2) * (image_size-1))
+    if convert:
+        u = int(((u + 1) / 2) * (image_size-1))
+        v = int(((v + 1) / 2) * (image_size-1))
     
     # Adjust for Cartesian coordinates
     v = image_size - v - 1
