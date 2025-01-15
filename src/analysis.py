@@ -291,8 +291,11 @@ def order_points_clockwise(points, midpoint):
 
 def plot_light_source(u,v, image_size=200):
     
-    u = int(((u + 1) / 2) * image_size)
-    v = int(((v + 1) / 2) * image_size)
+    u = int(((u + 1) / 2) * (image_size-1))
+    v = int(((v + 1) / 2) * (image_size-1))
+    
+    # Adjust for Cartesian coordinates
+    v = image_size - v - 1
     
     image = np.zeros((image_size, image_size, 1), dtype=np.uint8)
     
@@ -301,19 +304,9 @@ def plot_light_source(u,v, image_size=200):
     cv.circle(image, (u, v), 2, 255, -1)
     cv.line(image, (image_size//2, image_size//2), (u, v), 255, 1)
     
-    image = cv.flip(image, 0)
+    #image = cv.flip(image, 0)
     
     return image
-
-def plot_pixel(x, y, MLIC, L_poses):
-    plt.ylim(-1, 1)
-    plt.xlim(-1, 1)
-    plt.scatter(L_poses[:,0], L_poses[:,1], c=MLIC[:,y, x], cmap='viridis', s=1,)
-    plt.title(f"f({x}, {y}, ...)")
-    plt.xlabel("U")
-    plt.ylabel("V")
-    plt.colorbar()
-    plt.show()
 
 def getLightPose(objectPoints, imagePoints, cameraMatrix, dist, method="PnP"):
     
@@ -340,7 +333,7 @@ def getLightPose(objectPoints, imagePoints, cameraMatrix, dist, method="PnP"):
     res = -R.T @ t
     res = res / np.linalg.norm(res)
     
-    print(res)
+    #print(res)
     
     if np.sqrt(res[0]**2 + res[1]**2) > 1:
         print("Error: Light source outside the unit circle")
@@ -382,7 +375,8 @@ def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=Fals
     U_coin = []
     V_coin = []
 
-    print(cap_static.get(cv.CAP_PROP_FRAME_COUNT), cap_moving.get(cv.CAP_PROP_FRAME_COUNT))
+    print("Frames static:", cap_static.get(cv.CAP_PROP_FRAME_COUNT), "Frames moving:", cap_moving.get(cv.CAP_PROP_FRAME_COUNT))
+    print("FPS static", cap_static.get(cv.CAP_PROP_FPS), "FPS moving", cap_moving.get(cv.CAP_PROP_FPS))
     
     bar = tqdm(total=cap_static.get(cv.CAP_PROP_FRAME_COUNT), desc="Processing frames... skipped static: 0 skipped moving: 0")
 
@@ -484,10 +478,12 @@ def load_results(filename):
 
 if __name__ == "__main__":
     
-    filename = "coin1"
+    filename = "coin2"
     analysis(filename=filename)
 
     MLIC, L_poses, U_hat, V_hat = load_results(filename)
 
+    from interpolation import plot_pixel
+    
     plot_pixel(109, 200, MLIC, L_poses)
 
