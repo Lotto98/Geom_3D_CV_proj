@@ -20,7 +20,7 @@ def mouse_callback(event,x,y,flags,param):
     
     global drawing, x_inp, y_inp
     
-    y = 200 - y -1
+    #y = 200 - y -1
     
     #if (x - 100)**2 + (y - 100)**2 <= 100**2:
         
@@ -40,11 +40,12 @@ def mouse_callback(event,x,y,flags,param):
         x_inp = x
         y_inp = y
 
-
 def relighting():
     regular_grids = np.load("./results/RBF/coin1.npz", allow_pickle=True)
-    regular_grids = regular_grids["arr_0"].item()
+    regular_grids = regular_grids["regular_grids"]
     regular_grid_dim = (100, 100)
+    
+    print("Regular grid loaded")
     
     # Load data
     MLIC, L_poses, U_hat, V_hat = load_results("coin1")
@@ -65,12 +66,9 @@ def relighting():
                 
         x_grid, y_grid = nearest_point
         
-        for x in range(256):
-            for y in range(256):
-                
-                regular_grid = regular_grids[(x, y)]
-                
-                coin[y,x] = regular_grid[y_grid, x_grid]
+        print(regular_grids)
+        
+        coin = regular_grids[:,:,y_grid,x_grid].astype(np.uint8)
         
         cv.imshow("Coin", cv.resize(coin, (512,512)))
 

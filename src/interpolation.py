@@ -16,14 +16,12 @@ def process_pixel_RBF(args):
     x, y, MLIC_resized, L_poses, directions_uv, directions_grid, regular_grid_dim = args
     model_xy = Rbf(L_poses[:, 0], L_poses[:, 1], MLIC_resized[:, y, x], function='linear', smooth=1, )
     values = model_xy(directions_uv[:, 0], directions_uv[:, 1])
-    regular_grid = np.zeros(regular_grid_dim)
+    regular_grid = np.zeros(regular_grid_dim, dtype=np.uint8)
     regular_grid[directions_grid[:, 1], directions_grid[:, 0]] = values
     
     return x, y, regular_grid
 
 def interpolation(filename, coin_dim, regular_grid_dim, method, nprocesses=-1):
-    
-    regular_grids = {}
 
     if nprocesses == -1:
         nprocesses = multiprocessing.cpu_count()
@@ -61,14 +59,15 @@ def interpolation(filename, coin_dim, regular_grid_dim, method, nprocesses=-1):
         results = list(tqdm(pool.imap_unordered(process_pixel, args_list), total=len(args_list)))
 
     # Collect the results
+    regular_grids = np.zeros((coin_dim[1], coin_dim[0], regular_grid_dim[1], regular_grid_dim[0]), dtype=np.uint8)
     for x, y, regular_grid in results:
-        regular_grids[(x, y)] = regular_grid
+        regular_grids[y, x] = regular_grid
 
     # Save regular grids
     results_path = f"./results/{method}"
     os.makedirs(results_path, exist_ok=True)
     
-    np.savez_compressed(os.path.join(results_path, f"{filename}.npz"), regular_grids)
+    np.savez_compressed(os.path.join(results_path, f"{filename}.npz"), regular_grids=regular_grids)
 
 if __name__ == "__main__":
     

@@ -294,8 +294,8 @@ def plot_light_source(u,v, convert=True, image_size=200):
         u = int(((u + 1) / 2) * (image_size-1))
         v = int(((v + 1) / 2) * (image_size-1))
     
-    # Adjust for Cartesian coordinates
-    v = image_size - v - 1
+        # Adjust for Cartesian coordinates
+        v = image_size - v - 1
     
     image = np.zeros((image_size, image_size, 1), dtype=np.uint8)
     
