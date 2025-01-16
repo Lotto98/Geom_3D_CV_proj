@@ -67,7 +67,10 @@ def interpolation(filename, coin_dim, regular_grid_dim, method, nprocesses=-1):
     results_path = f"./results/{method}"
     os.makedirs(results_path, exist_ok=True)
     
-    np.savez_compressed(os.path.join(results_path, f"{filename}.npz"), regular_grids=regular_grids)
+    np.savez_compressed(os.path.join(results_path, f"{filename}.npz"), 
+                        regular_grids=regular_grids,
+                        regular_grid_dim=regular_grid_dim,
+                        coin_dim=coin_dim)
 
 if __name__ == "__main__":
     

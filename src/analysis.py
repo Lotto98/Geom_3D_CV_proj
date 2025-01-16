@@ -504,7 +504,7 @@ if __name__ == "__main__":
     nprocesses = -1
     method = "RBF"
     
-    analysis(filename=filename, debug=True, debug_moving=False, debug_static=False)
+    #analysis(filename=filename, debug=True, debug_moving=False, debug_static=False)
     
     execution_string = f"python3 src/interpolation.py"
     execution_string += f" --filename {filename}"
