@@ -499,7 +499,7 @@ if __name__ == "__main__":
     
     filename = "coin1"
     regular_grid_dim = (100, 100)
-    resize_dim = (64, 64)
+    resize_dim = (128, 128)
     nprocesses = -1
     method = "RBF"
     
