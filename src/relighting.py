@@ -41,16 +41,17 @@ def mouse_callback(event,x,y,flags,param):
         y_inp = y
 
 def relighting():
-    regular_grids = np.load("./results/RBF/coin1.npz", allow_pickle=True)
-    regular_grids = regular_grids["regular_grids"]
-    regular_grid_dim = (100, 100)
+    loaded = np.load("./results/RBF/coin1.npz", allow_pickle=True)
+    regular_grids = loaded["regular_grids"]
+    regular_grid_dim = loaded["regular_grid_dim"]
+    coin_dim = loaded["coin_dim"]
     
     print("Regular grid loaded")
     
     # Load data
     MLIC, L_poses, U_hat, V_hat = load_results("coin1")
-    U_hat = cv.resize(U_hat, (32, 32)).astype(np.uint8)
-    V_hat = cv.resize(V_hat, (32, 32)).astype(np.uint8)
+    U_hat = cv.resize(U_hat, coin_dim).astype(np.uint8)
+    V_hat = cv.resize(V_hat, coin_dim).astype(np.uint8)
     
     directions_grid = np.array([np.array([x,y]) for x,y in itertools.product(range(0, regular_grid_dim[0]), range(0, regular_grid_dim[0]))])
     
@@ -62,7 +63,7 @@ def relighting():
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
         
-        coin = np.zeros((32, 32, 1), dtype=np.uint8)
+        coin = np.zeros((coin_dim[0], coin_dim[1], 1), dtype=np.uint8)
         
         nearest_point = find_nearest_point(directions_grid, np.array([x_inp, y_inp]))
                 
