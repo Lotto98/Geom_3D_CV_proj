@@ -84,6 +84,8 @@ def interpolation(filename, coin_dim, regular_grid_dim, method, nprocesses=-1):
     if nprocesses == -1:
         nprocesses = multiprocessing.cpu_count()
     
+    print(f"Interpolating {filename} using {method} with {nprocesses} processes")
+    
     # Load data
     MLIC, L_poses, U_hat, V_hat = load_light_results(filename)
 
