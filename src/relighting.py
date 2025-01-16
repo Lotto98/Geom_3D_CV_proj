@@ -44,7 +44,7 @@ def mouse_callback(event,x,y,flags,param):
         print(x_inp, y_inp)
 
 def relighting():
-    loaded = np.load("./results/RBF/coin1.npz", allow_pickle=True)
+    loaded = np.load("./results/PTM/coin1.npz", allow_pickle=True)
     regular_grids = loaded["regular_grids"]
     regular_grid_dim = loaded["regular_grid_dim"]
     coin_dim = loaded["coin_dim"]
@@ -76,13 +76,12 @@ def relighting():
         
         print(coin.max())
         
-        """
         coin = np.concatenate((np.expand_dims(coin, axis=2), 
                                 np.expand_dims(U_hat, axis=2), 
                                 np.expand_dims(V_hat, axis=2)), axis=2)
         
         coin = cv.cvtColor(coin, cv.COLOR_YUV2RGB)
-        """
+        
         cv.imshow("Coin", cv.resize(coin, (512,512)))
 
 if __name__ == "__main__":

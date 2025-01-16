@@ -23,7 +23,7 @@ def compute_ptm_coefficients_2d(MLIC, light_poses):
         light_poses (numpy array): Light poses (n_images, 2).
         
     Returns:
-        numpy array: PTM coefficients (H, W, 3).
+        numpy array: PTM coefficients (H, W, 6).
     """
     n_images, H, W = MLIC.shape
     
@@ -31,17 +31,17 @@ def compute_ptm_coefficients_2d(MLIC, light_poses):
     intensities = MLIC.reshape(n_images, -1)  # Shape: (n_images, H*W)
     
     # Build the 2D design matrix
-    x, y = light_poses[:, 0], light_poses[:, 1]
-    L = np.stack([x**2, y**2], axis=1)  # Shape: (n_images, 2)
+    u, v = light_poses[:, 0], light_poses[:, 1]
+    L = np.stack([ u**2, v**2, u*v, u, v, np.ones_like(u) ], axis=1)  # Shape: (n_images, 6)
     
     # Normalize the design matrix
-    L /= np.linalg.norm(L, axis=1, keepdims=True)
+    #L /= np.linalg.norm(L, axis=1, keepdims=True)
     
     # Compute coefficients for each pixel
-    L_pseudo_inv = np.linalg.pinv(L)  # Shape: (3, n_images)
-    coeffs = L_pseudo_inv @ intensities  # Shape: (3, H*W)
+    L_pseudo_inv = np.linalg.pinv(L)  # Shape: (6, n_images)
+    coeffs = L_pseudo_inv @ intensities  # Shape: (6, H*W)
     
-    return coeffs.T.reshape(H, W, 2)
+    return coeffs.T.reshape(H, W, 6)
 
 def render_ptm_2d(coeffs, light_dir):
     """
@@ -54,8 +54,8 @@ def render_ptm_2d(coeffs, light_dir):
     Returns:
         numpy array: Rendered image.
     """
-    x, y = light_dir
-    L = np.array([x**2, y**2])  # Shape: (3,)
+    u, v = light_dir
+    L = np.array([ u**2, v**2, u*v, u, v, np.ones_like(u) ])  # Shape: (6,)
     
     rendered = np.sum(coeffs * L, axis=2)  # Weighted sum using coefficients
     rendered = np.clip(rendered, 0, 255).astype(np.uint8)  # Ensure valid pixel range
