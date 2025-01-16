@@ -29,16 +29,19 @@ def mouse_callback(event,x,y,flags,param):
         plot(x, y)
         x_inp = x
         y_inp = y
+        print(x_inp, y_inp)
     elif event == cv.EVENT_MOUSEMOVE:
         if drawing == True:
             plot(x, y)
             x_inp = x
             y_inp = y
+            print(x_inp, y_inp)
     elif event == cv.EVENT_LBUTTONUP:
         drawing = False
         plot(x, y)
         x_inp = x
         y_inp = y
+        print(x_inp, y_inp)
 
 def relighting():
     loaded = np.load("./results/RBF/coin1.npz", allow_pickle=True)
@@ -71,12 +74,13 @@ def relighting():
         
         coin = regular_grids[:,:,y_grid,x_grid].astype(np.uint8)
         
+        """
         coin = np.concatenate((np.expand_dims(coin, axis=2), 
                                 np.expand_dims(U_hat, axis=2), 
                                 np.expand_dims(V_hat, axis=2)), axis=2)
         
         coin = cv.cvtColor(coin, cv.COLOR_YUV2RGB)
-        
+        """
         cv.imshow("Coin", cv.resize(coin, (512,512)))
 
 if __name__ == "__main__":
