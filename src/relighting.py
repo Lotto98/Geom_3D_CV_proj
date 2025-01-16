@@ -70,9 +70,9 @@ def relighting():
                 
                 regular_grid = regular_grids[(x, y)]
                 
-                coin[y,x] = regular_grid[x_grid, y_grid]
+                coin[y,x] = regular_grid[y_grid, x_grid]
         
-        cv.imshow("Coin", cv.flip(cv.resize(coin, (512,512)),1))
+        cv.imshow("Coin", cv.resize(coin, (512,512)))
 
 if __name__ == "__main__":
     relighting()
