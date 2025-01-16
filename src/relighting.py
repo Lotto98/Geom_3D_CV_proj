@@ -59,16 +59,16 @@ def relighting():
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
         
-        coin = np.zeros((64, 64, 1), dtype=np.uint8)
+        coin = np.zeros((256, 256, 1), dtype=np.uint8)
         
-        for x in range(64):
-            for y in range(64):
+        nearest_point = find_nearest_point(directions_grid, np.array([x_inp, y_inp]))
+                
+        x_grid, y_grid = nearest_point
+        
+        for x in range(256):
+            for y in range(256):
                 
                 regular_grid = regular_grids[(x, y)]
-                
-                nearest_point = find_nearest_point(directions_grid, np.array([x_inp, y_inp]))
-                
-                x_grid, y_grid = nearest_point
                 
                 coin[y,x] = regular_grid[x_grid, y_grid]
         

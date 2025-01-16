@@ -500,11 +500,11 @@ if __name__ == "__main__":
     
     filename = "coin1"
     regular_grid_dim = (100, 100)
-    resize_dim = (64, 64)
+    resize_dim = (256, 256)
     nprocesses = -1
     method = "RBF"
     
-    #analysis(filename=filename, debug=False, debug_moving=False, debug_static=False)
+    analysis(filename=filename, debug=True, debug_moving=False, debug_static=False)
     
     execution_string = f"python3 src/interpolation.py"
     execution_string += f" --filename {filename}"
@@ -523,7 +523,7 @@ if __name__ == "__main__":
     MLIC_resized = [cv.resize(coin, (200, 200)) for coin in MLIC]
     MLIC_resized = np.array(MLIC_resized)
     
-    regular_grids = np.load(f"./results/{filename}.npy", allow_pickle=True).item()
+    regular_grids = np.load(f"./results/RBF/{filename}.npy", allow_pickle=True).item()
     
     plot_pixel(10, 20, MLIC_resized, L_poses, regular_grids=regular_grids)
 
