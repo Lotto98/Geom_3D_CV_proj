@@ -294,8 +294,8 @@ def plot_light_source(u,v, convert=True, image_size=200):
         u = int(((u + 1) / 2) * (image_size-1))
         v = int(((v + 1) / 2) * (image_size-1))
     
-        # Adjust for Cartesian coordinates
-        v = image_size - v - 1
+    # Adjust for Cartesian coordinates
+    v = image_size - v - 1
     
     image = np.zeros((image_size, image_size, 1), dtype=np.uint8)
     
@@ -303,8 +303,6 @@ def plot_light_source(u,v, convert=True, image_size=200):
     
     cv.circle(image, (u, v), 2, 255, -1)
     cv.line(image, (image_size//2, image_size//2), (u, v), 255, 1)
-    
-    #image = cv.flip(image, 0)
     
     return image
 
@@ -379,7 +377,7 @@ def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=Fals
     print("FPS static", cap_static.get(cv.CAP_PROP_FPS), "FPS moving", cap_moving.get(cv.CAP_PROP_FPS))
     
     bar = tqdm(total=cap_static.get(cv.CAP_PROP_FRAME_COUNT), desc="Processing frames... skipped static: 0 skipped moving: 0")
-
+    
     while cap_static.isOpened() or cap_moving.isOpened():
         ret_static, frame_static = cap_static.read()
         ret_moving, frame_moving = cap_moving.read()
@@ -449,11 +447,12 @@ def analysis(filename="coin1", debug=True, debug_moving=False, debug_static=Fals
                 break
         
         bar.update(1)
-
+        
+        
     MLIC = np.array(MLIC)
     L_poses = np.array(L_poses)
-    U_hat = np.mean(U_coin, axis=0)
-    V_hat = np.mean(V_coin, axis=0)
+    U_hat = np.mean(np.array(U_coin), axis=0)
+    V_hat = np.mean(np.array(V_coin), axis=0)
     
     cap_static.release()
     cap_moving.release()
@@ -500,11 +499,11 @@ if __name__ == "__main__":
     
     filename = "coin1"
     regular_grid_dim = (100, 100)
-    resize_dim = (256, 256)
+    resize_dim = (64, 64)
     nprocesses = -1
     method = "RBF"
     
-    analysis(filename=filename, debug=True, debug_moving=False, debug_static=False)
+    #analysis(filename=filename, debug=False, debug_moving=False, debug_static=False)
     
     execution_string = f"python3 src/interpolation.py"
     execution_string += f" --filename {filename}"

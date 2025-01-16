@@ -20,9 +20,9 @@ def mouse_callback(event,x,y,flags,param):
     
     global drawing, x_inp, y_inp
     
-    #y = 200 - y -1
-    
     #if (x - 100)**2 + (y - 100)**2 <= 100**2:
+    
+    y = 200 - y -1
         
     if event == cv.EVENT_LBUTTONDOWN:
         drawing = True
@@ -49,6 +49,8 @@ def relighting():
     
     # Load data
     MLIC, L_poses, U_hat, V_hat = load_results("coin1")
+    U_hat = cv.resize(U_hat, (32, 32)).astype(np.uint8)
+    V_hat = cv.resize(V_hat, (32, 32)).astype(np.uint8)
     
     directions_grid = np.array([np.array([x,y]) for x,y in itertools.product(range(0, regular_grid_dim[0]), range(0, regular_grid_dim[0]))])
     
@@ -60,15 +62,19 @@ def relighting():
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
         
-        coin = np.zeros((256, 256, 1), dtype=np.uint8)
+        coin = np.zeros((32, 32, 1), dtype=np.uint8)
         
         nearest_point = find_nearest_point(directions_grid, np.array([x_inp, y_inp]))
                 
         x_grid, y_grid = nearest_point
         
-        print(regular_grids)
-        
         coin = regular_grids[:,:,y_grid,x_grid].astype(np.uint8)
+        
+        coin = np.concatenate((np.expand_dims(coin, axis=2), 
+                                np.expand_dims(U_hat, axis=2), 
+                                np.expand_dims(V_hat, axis=2)), axis=2)
+        
+        coin = cv.cvtColor(coin, cv.COLOR_YUV2RGB)
         
         cv.imshow("Coin", cv.resize(coin, (512,512)))
 
