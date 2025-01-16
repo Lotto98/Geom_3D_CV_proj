@@ -12,6 +12,8 @@ from scipy.interpolate import Rbf
 
 import argparse
 
+from analysis import plot_pixel
+
 def compute_ptm_coefficients_2d(MLIC, light_poses):
     """
     Compute PTM coefficients for each pixel using 2D light poses.
@@ -61,10 +63,21 @@ def render_ptm_2d(coeffs, light_dir):
 
 def process_pixel_RBF(args):
     x, y, MLIC_resized, L_poses, directions_uv, directions_grid, regular_grid_dim = args
+    
+    #MLIC_resized_normalized = 2 * (MLIC_resized[:, y, x] / 255.0) - 1
+    
+    #print(MLIC_resized_normalized.max(), MLIC_resized_normalized.min())
+    
     model_xy = Rbf(L_poses[:, 0], L_poses[:, 1], MLIC_resized[:, y, x], function='linear', smooth=1, )
     values = model_xy(directions_uv[:, 0], directions_uv[:, 1])
+    values = np.clip(values, 0, 255)
+    
     regular_grid = np.zeros(regular_grid_dim, dtype=np.uint8)
     regular_grid[directions_grid[:, 1], directions_grid[:, 0]] = values
+    
+    #print(regular_grid.max(), regular_grid.min())
+    
+    #plot_pixel(x, y, MLIC_resized, L_poses, regular_grid)
     
     return x, y, regular_grid
 

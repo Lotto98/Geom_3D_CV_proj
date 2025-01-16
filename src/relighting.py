@@ -72,7 +72,9 @@ def relighting():
                 
         x_grid, y_grid = nearest_point
         
-        coin = regular_grids[:,:,y_grid,x_grid].astype(np.uint8)
+        coin = regular_grids[:,:,y_grid,x_grid]#.astype(np.uint8)
+        
+        print(coin.max())
         
         """
         coin = np.concatenate((np.expand_dims(coin, axis=2), 

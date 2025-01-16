@@ -475,7 +475,7 @@ def load_results(filename):
     
     return MLIC, L_poses, U_hat, V_hat
 
-def plot_pixel(x, y, MLIC, L_poses, regular_grids={}):
+def plot_pixel(x, y, MLIC, L_poses, regular_grid=None):
     fig, ax = plt.subplots(1, 2)
     ax[0].set_ylim(-1, 1)
     ax[0].set_xlim(-1, 1)
@@ -485,9 +485,11 @@ def plot_pixel(x, y, MLIC, L_poses, regular_grids={}):
     ax[0].set_ylabel("V")
     fig.colorbar(scatter, ax=ax[0])
 
-    if regular_grids != {}:
-        ax[1].matshow(regular_grids[(x, y)])
+    if regular_grid is not None:
+        #print(regular_grid.max(), regular_grid.min())
+        image =ax[1].matshow(regular_grid)
         ax[1].set_title("Interpolation")
+        fig.colorbar(image, ax=ax[1])
     else:
         ax[1].set_title("No interpolation")
     ax[1].axis('off')
