@@ -1,7 +1,7 @@
 import numpy as np
 import itertools
 import cv2 as cv
-from analysis import load_results
+from compute_light import load_light_results
 from tqdm import tqdm
 import multiprocessing
 import matplotlib.pyplot as plt
@@ -11,8 +11,6 @@ import os
 from scipy.interpolate import Rbf
 
 import argparse
-
-from analysis import plot_pixel
 
 def compute_ptm_coefficients_2d(MLIC, light_poses):
     """
@@ -87,7 +85,7 @@ def interpolation(filename, coin_dim, regular_grid_dim, method, nprocesses=-1):
         nprocesses = multiprocessing.cpu_count()
     
     # Load data
-    MLIC, L_poses, U_hat, V_hat = load_results(filename)
+    MLIC, L_poses, U_hat, V_hat = load_light_results(filename)
 
     MLIC_resized = []
     for coin in MLIC:
@@ -155,8 +153,6 @@ if __name__ == "__main__":
     filename = args.filename
     coin_dim = tuple(args.coin_dim)
     regular_grid_dim = tuple(args.regular_grid_dim)
-    
-    #print(f"Interpolating {filename} with coin_dim={coin_dim} and regular_grid_dim={regular_grid_dim}")
     
     interpolation(filename=filename, 
                     coin_dim=coin_dim, 
