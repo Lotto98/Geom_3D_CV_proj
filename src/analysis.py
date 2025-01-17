@@ -27,6 +27,10 @@ if __name__ == "__main__":
     if not args.interpolate and not args.compute_light:
         print("Choose at least one action: --compute-light or --interpolate")
         exit()
+        
+    if args.interpolate and args.method is None:
+        print("Choose a method for interpolation: --method RBF or PTM")
+        exit()
     
     print(args)
     
@@ -41,10 +45,6 @@ if __name__ == "__main__":
         resize_dim = tuple(args.coin_dim)
         nprocesses = args.nprocesses
         method = args.method
-        
-        if method is None:
-            print("Interpolate without --method specified: RBF or PTM")
-            exit()
         
         execution_string = f"python3 src/interpolation.py"
         execution_string += f" --filename {filename}"
