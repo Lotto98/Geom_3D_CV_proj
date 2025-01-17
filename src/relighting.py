@@ -1,12 +1,8 @@
-
+import os
 import numpy as np
-
 from compute_light import load_light_results, find_nearest_point, plot_light_source
-
 import itertools
-
 import cv2 as cv
-
 import argparse
 
 x_inp = 0
@@ -46,6 +42,9 @@ def mouse_callback(event,x,y,flags,param):
         #print(x_inp, y_inp)
 
 def relighting(coin_number:int, method:str):
+    
+    if not os.path.exists(f"./results/{method}/coin{coin_number}.npz"):
+        raise FileNotFoundError(f"File ./results/{method}/coin{coin_number}.npz not found: did you run the interpolation using {method} ?")
     
     loaded = np.load(f"./results/{method}/coin{coin_number}.npz", allow_pickle=True)
     regular_grids = loaded["regular_grids"]

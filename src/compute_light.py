@@ -468,6 +468,10 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
     np.savez(result_path, MLIC=MLIC, L_poses=L_poses, V_hat=V_hat, U_hat=U_hat)
 
 def load_light_results(filename):
+    
+    if not os.path.exists(f"./results_intermediate/{filename}.npz"):
+        raise FileNotFoundError(f"File not found: {filename}: did you run compute_light?")
+    
     results = np.load(f"./results_intermediate/{filename}.npz")
     MLIC = results['MLIC']
     L_poses = results['L_poses']
