@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import librosa
 
 from tqdm import tqdm
-import subprocess
 
 import argparse
 
@@ -307,28 +306,38 @@ def plot_light_source(u,v, convert=True, image_size=200):
     
     return image
 
-def getLightPose(objectPoints, imagePoints, cameraMatrix, dist, method="PnP"):
+def getLightPose(objectPoints, imagePoints, cameraMatrix, dist, method="Homography"):
     
-    moving_homography, _ = cv.findHomography(objectPoints, imagePoints)
+    if method == "PnP":
         
-    inv_K__H = np.linalg.inv(cameraMatrix) @ moving_homography
-    r1 = inv_K__H[:, 0]
-    r2 = inv_K__H[:, 1]
-    t = inv_K__H[:, 2]
-    
-    alpha = 2 / (np.linalg.norm(r1) + np.linalg.norm(r2))
-    
-    RT = (inv_K__H / alpha)
-    
-    r1 = RT[:, 0]
-    r2 = RT[:, 1]
-    t = RT[:, 2]
-    r3 = np.cross(r1, r2)
-    Q = np.column_stack([r1, r2, r3])
-    
-    U, _, Vt = np.linalg.svd(Q)
-    R = U @ Vt
-    
+        retval, rvec, t = cv.solvePnP(objectPoints, imagePoints, cameraMatrix, dist, flags=cv.SOLVEPNP_P3P )
+        
+        if not retval:
+            raise ValueError("Error in solvePnP")
+        
+        R, _ = cv.Rodrigues(rvec)
+        
+    elif method == "Homography":
+        moving_homography, _ = cv.findHomography(objectPoints, imagePoints)
+            
+        inv_K__H = np.linalg.inv(cameraMatrix) @ moving_homography
+        r1 = inv_K__H[:, 0]
+        r2 = inv_K__H[:, 1]
+        t = inv_K__H[:, 2]
+        
+        alpha = 2 / (np.linalg.norm(r1) + np.linalg.norm(r2))
+        
+        RT = (inv_K__H / alpha)
+        
+        r1 = RT[:, 0]
+        r2 = RT[:, 1]
+        t = RT[:, 2]
+        r3 = np.cross(r1, r2)
+        Q = np.column_stack([r1, r2, r3])
+        
+        U, _, Vt = np.linalg.svd(Q)
+        R = U @ Vt
+        
     res = -R.T @ t
     res = res / np.linalg.norm(res)
     
@@ -365,7 +374,7 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
 
     mtx, dist, rvecs, tvecs = load_camera_parameters("moving_light")
 
-    first = True
+    is_first_frame = True
 
     skipped_static = 0
     skipped_moving = 0
@@ -388,15 +397,14 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
         if not ret_static or not ret_moving:
             break
         
-        if first:
+        if is_first_frame:
             marker_static, midpoint_static = detect_fiducial_marker(frame_static, debug=debug_static)
-            first = False
         
         frame_moving = cv.undistort(frame_moving, mtx, dist)
         marker_moving, midpoint_moving = detect_fiducial_marker(frame_moving, debug=debug_moving)
         
         if marker_static is None:
-            first = True
+            is_first_frame = True
             skipped_static += 1
             bar.update(1)
             bar.desc = f"Processing frames... skipped static: {skipped_static} skipped moving: {skipped_moving}"
@@ -415,12 +423,14 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
             if cv.waitKey(1) & 0xFF == ord('q'):
                 break
         
-        #crop static image using the marker
-        x, y, w, h = cv.boundingRect(marker_static)
-        marker_reference_points = np.array([[0, 0, 1], [0, h, 1], [w, h, 1], [w, 0, 1]  ], dtype=np.float32)
-        static_homography, _ = cv.findHomography(marker_static.astype(np.float32), marker_reference_points)
+        if is_first_frame:
+            #"crop" static image using the static marker
+            _, _, w_static, h_static = cv.boundingRect(marker_static)
+            marker_reference_points_static = np.array([ [0, 0, 1], [0, h_static, 1], 
+                                                        [w_static, h_static, 1], [w_static, 0, 1]  ],dtype=np.float32)
+            static_homography, _ = cv.findHomography(marker_static.astype(np.float32), marker_reference_points_static)
         
-        coin = cv.warpPerspective(frame_static, static_homography, (w,h))
+        coin = cv.warpPerspective(frame_static, static_homography, (w_static,h_static))
         coin = cv.flip(coin, 0) 
         
         #convert to YUV and get the Y channel
@@ -450,6 +460,7 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
                 break
         
         bar.update(1)
+        is_first_frame = False
         
     MLIC = np.array(MLIC)
     L_poses = np.array(L_poses)
