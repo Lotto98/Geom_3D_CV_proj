@@ -119,8 +119,7 @@ def calculate_error(frames:List[np.ndarray], objpoints:List[np.ndarray], imgpoin
 def load_camera_parameters(name:str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     
     if not os.path.exists(f'calibration/param_{name}.npz'):
-        print("Camera parameters file does not exist.")
-        return
+        raise FileNotFoundError(f"File calibration/param_{name}.npz not found: did you run the calibration for {name} ?")
     
     data = np.load(f'calibration/param_{name}.npz')
     
