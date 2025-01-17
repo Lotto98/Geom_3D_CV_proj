@@ -1,5 +1,5 @@
 data/
 data_aligned/
 results_intermediate/
-results/PTM/
+results/
 src/__pycache__/
