@@ -11,7 +11,7 @@ if __name__ == "__main__":
     parser.add_argument("--interpolate", action="store_true", help="Interpolate computed light")
     
     #compute light arguments
-    parser.add_argument("--debug", action="store_true", help="Debug mode", default=True)
+    parser.add_argument("--debug", action="store_true", help="Debug mode", default=False)
     parser.add_argument("--debug_moving", action="store_true", help="Debug mode moving light", default=False)
     parser.add_argument("--debug_static", action="store_true", help="Debug mode static light", default=False)
     
