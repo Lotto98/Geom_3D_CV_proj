@@ -12,34 +12,34 @@ drawing = False
 def plot(x_inp, y_inp):
     img = plot_light_source(x_inp, y_inp, convert=False)
     cv.imshow("Light selector", img)
+    
+def set_light(x, y):
+    
+    global x_inp, y_inp
+    
+    plot(x, y)
+    
+    y = 200 - y - 1
+    
+    x_inp = ( x / 200)*100
+    y_inp = ( y / 200)*100
 
 # mouse callback function
 def mouse_callback(event,x,y,flags,param):
     
-    global drawing, x_inp, y_inp
+    global drawing
     
     #if (x - 100)**2 + (y - 100)**2 <= 100**2:
-    
-    y = 200 - y -1
         
     if event == cv.EVENT_LBUTTONDOWN:
         drawing = True
-        plot(x, y)
-        x_inp = x
-        y_inp = y
-        #print(x_inp, y_inp)
+        set_light(x, y)
     elif event == cv.EVENT_MOUSEMOVE:
         if drawing == True:
-            plot(x, y)
-            x_inp = x
-            y_inp = y
-            #print(x_inp, y_inp)
+            set_light(x, y)
     elif event == cv.EVENT_LBUTTONUP:
         drawing = False
-        plot(x, y)
-        x_inp = x
-        y_inp = y
-        #print(x_inp, y_inp)
+        set_light(x, y)
 
 def relighting(coin_number:int, method:str):
     
@@ -58,7 +58,7 @@ def relighting(coin_number:int, method:str):
     U_hat = cv.resize(U_hat, coin_dim).astype(np.uint8)
     V_hat = cv.resize(V_hat, coin_dim).astype(np.uint8)
     
-    directions_grid = np.array([np.array([x,y]) for x,y in itertools.product(range(0, regular_grid_dim[0]), range(0, regular_grid_dim[0]))])
+    directions_grid = np.array([np.array([y,x]) for x,y in itertools.product(range(0, regular_grid_dim[0]), range(0, regular_grid_dim[0]))])
     
     img = plot_light_source(x_inp, y_inp)
     cv.imshow("Light selector", img)
@@ -70,9 +70,12 @@ def relighting(coin_number:int, method:str):
         
         coin = np.zeros((coin_dim[0], coin_dim[1], 1), dtype=np.uint8)
         
-        nearest_point = find_nearest_point(directions_grid, np.array([x_inp, y_inp]))
-                
-        x_grid, y_grid = nearest_point
+        nearest_point = find_nearest_point(directions_grid, np.array([y_inp, x_inp]))
+        
+        
+        print(np.array([y_inp, x_inp]),nearest_point)
+        
+        y_grid, x_grid, = nearest_point
         
         coin = regular_grids[:,:,y_grid,x_grid]#.astype(np.uint8)
         
