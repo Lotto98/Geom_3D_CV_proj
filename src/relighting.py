@@ -45,9 +45,9 @@ def mouse_callback(event,x,y,flags,param):
         y_inp = y
         #print(x_inp, y_inp)
 
-def relighting(coin_number:int):
+def relighting(coin_number:int, method:str):
     
-    loaded = np.load(f"./results/RBF/coin{coin_number}.npz", allow_pickle=True)
+    loaded = np.load(f"./results/{method}/coin{coin_number}.npz", allow_pickle=True)
     regular_grids = loaded["regular_grids"]
     regular_grid_dim = loaded["regular_grid_dim"]
     coin_dim = loaded["coin_dim"]
@@ -90,5 +90,8 @@ def relighting(coin_number:int):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Relighting")
     parser.add_argument("--coin", type=int, required=True, help="Coin number: 1, 2, 3, 4")
+    parser.add_argument("--method", type=str, required=True, 
+                        help="Method of interpolation to visualize",
+                        choices=["RBF", "PTM"])
     args = parser.parse_args()
-    relighting(args.coin)
+    relighting(args.coin, args.method)
