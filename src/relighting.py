@@ -5,8 +5,8 @@ import itertools
 import cv2 as cv
 import argparse
 
-x_inp = 0
-y_inp = 0
+x_inp = 50
+y_inp = 50
 drawing = False
 
 def plot(x_inp, y_inp):
@@ -30,6 +30,8 @@ def mouse_callback(event,x,y,flags,param):
     global drawing
     
     #if (x - 100)**2 + (y - 100)**2 <= 100**2:
+    
+    print(x,y)
         
     if event == cv.EVENT_LBUTTONDOWN:
         drawing = True
@@ -60,7 +62,7 @@ def relighting(coin_number:int, method:str):
     
     directions_grid = np.array([np.array([y,x]) for x,y in itertools.product(range(0, regular_grid_dim[0]), range(0, regular_grid_dim[0]))])
     
-    img = plot_light_source(x_inp, y_inp)
+    img = plot_light_source(100, 100, convert=False)
     cv.imshow("Light selector", img)
     cv.setMouseCallback("Light selector", mouse_callback)
     
@@ -73,7 +75,7 @@ def relighting(coin_number:int, method:str):
         nearest_point = find_nearest_point(directions_grid, np.array([y_inp, x_inp]))
         
         
-        print(np.array([y_inp, x_inp]),nearest_point)
+        #print(np.array([y_inp, x_inp]),nearest_point)
         
         y_grid, x_grid, = nearest_point
         
