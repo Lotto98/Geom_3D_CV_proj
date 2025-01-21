@@ -4,6 +4,12 @@ import argparse
 
 if __name__ == "__main__":
     
+    
+    description = """
+    This script is used to compute the light for a given coin and interpolate it using different methods.
+    """
+    
+    
     parser = argparse.ArgumentParser(description="Analysis script")
     
     parser.add_argument(
@@ -30,17 +36,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--debug", 
         action="store_true", 
-        help="Enable debug mode for general processing."
+        help="Enable debug mode for general processing. For `--compute-light` only."
     )
     parser.add_argument(
         "--debug-moving", 
         action="store_true", 
-        help="Enable debug mode for moving light."
+        help="Enable debug mode for moving light. For `--compute-light` only."
     )
     parser.add_argument(
         "--debug-static", 
         action="store_true", 
-        help="Enable debug mode for static light."
+        help="Enable debug mode for static light. For `--compute-light` only."
     )
 
     # Interpolation arguments
@@ -48,13 +54,13 @@ if __name__ == "__main__":
         "--method", 
         type=str, 
         choices=["RBF", "PTM", "RBF_cuda"],  
-        help="Interpolation method"
+        help="Interpolation method. For `--interpolate` only."
     )
     parser.add_argument(
         "--nprocesses", 
         type=int, 
         default=-1, 
-        help="Number of processes for interpolation (-1 to use all available)."
+        help="Number of processes for interpolation (-1 to use all available). For `--method RBF` only."
     )
 
     parser.add_argument(
@@ -63,7 +69,7 @@ if __name__ == "__main__":
         nargs=2, 
         default=[512, 512], 
         metavar=("WIDTH", "HEIGHT"), 
-        help="Dimensions of the coin (default: [512, 512])."
+        help="Dimensions of the coin (default: [512, 512]). For `--interpolate` only."
     )
     parser.add_argument(
         "--regular-grid-dim", 
@@ -71,7 +77,7 @@ if __name__ == "__main__":
         nargs=2, 
         default=[100, 100], 
         metavar=("ROWS", "COLS"), 
-        help="Dimensions of the regular grid (default: [100, 100])."
+        help="Dimensions of the regular grid (default: [100, 100]). For `--interpolate` only."
     )
     
     args = parser.parse_args()

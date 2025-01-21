@@ -22,37 +22,62 @@ To set up the conda environment for this project, follow these steps:
 
 ## Usage
 
-### Calibrator
+### Usage Instructions for `calibrator.py`
 
-To run the `calibrator.py` script, use the following command:
+This script is used to calibrate camera using chessboard images.
+
 ```bash
-usage: calibration.py [-h] [--name NAME] [--chessboard_dim CHESSBOARD_DIM] [--num_frames NUM_FRAMES] [--debug | --no-debug] [--error | --no-error]
-
-Calibrate camera using chessboard images.
-
-options:
-  -h, --help            show this help message and exit
-  --name NAME           Name of the camera setup (moving_light/static)
-  --chessboard_dim CHESSBOARD_DIM
-                        Chessboard dimensions
-  --num_frames NUM_FRAMES
-                        Number of frames to select from the video
-  --debug, --no-debug   Show the chessboard corners and projected corners
-  --error, --no-error   Calculate the error
+usage: calibration.py [-h] [--name NAME] [--chessboard_dim CHESSBOARD_DIM] [--num_frames NUM_FRAMES] 
+                        [--debug | --no-debug] [--error | --no-error]
 ```
 
-### Analysis
+#### Options
 
-To run the `analysis.py` script, use the following command:
+| Option                            | Description                                                 |
+|-----------------------------------|-------------------------------------------------------------|
+| `-h, --help`                      | Show this help message and exit.                            |
+| `--name NAME`                     | Name of the camera setup (moving_light/static).             |
+| `--chessboard_dim CHESSBOARD_DIM` | Chessboard dimensions.                                      |
+| `--num_frames NUM_FRAMES`         | Number of frames to select from the video.                  |
+| `--debug, --no-debug`             | Show the chessboard corners and projected corners.          |
+| `--error, --no-error`             | Calculate the error.                                        |
+
+
+### Usage Instructions for `analysis.py`
+
+This script is used to compute the light for a given coin and interpolate it using different methods.
+
 ```bash
-python analysis.py --data <data_file> --results <results_file>
+usage: analysis.py [-h] --coin {1,2,3,4} [--compute-light] [--interpolate] 
+                    [--debug] [--debug-moving] [--debug-static] 
+                    [--method {RBF,PTM,RBF_cuda}] [--nprocesses NPROCESSES]
+                    [--coin-dim WIDTH HEIGHT] [--regular-grid-dim ROWS COLS]
 ```
-Replace `<data_file>` with the path to your data file and `<results_file>` with the desired path for the results file.
 
-### Relighting
+#### Options
 
-To run the `relighting.py` script, use the following command:
+| Option                        | Description                                                                                        |
+|-------------------------------|----------------------------------------------------------------------------------------------------|
+| `-h, --help`                  | Show this help message and exit.                                                                   |
+| `--coin {1,2,3,4}`            | Specify the coin type to process (1, 2, 3, or 4).                                                  |
+| `--compute-light`             | Enable light computation.                                                                          |
+| `--interpolate`               | Enable interpolation for computed light.                                                           |
+| `--debug`                     | Enable debug mode for general processing. For `--compute-light` only.                              |
+| `--debug-moving`              | Enable debug mode for moving light. For `--compute-light` only.                                    |
+| `--debug-static`              | Enable debug mode for static light. For `--compute-light` only.                                    |
+| `--method {RBF,PTM,RBF_cuda}` | Specify the interpolation method. For `--interpolate` only.                                        |
+| `--nprocesses NPROCESSES`     | Number of processes for interpolation (Default: -1 to use all available). For `--method RBF` only. |
+| `--coin-dim WIDTH HEIGHT`     | Dimensions of the coin (default: `[512, 512]`). For `--interpolate` only.                          |
+| `--regular-grid-dim ROWS COLS`| Dimensions of the regular grid (default: `[100, 100]`). For `--interpolate` only.                  |
+
+#### Example Usage
+
+##### Basic Example
 ```bash
-python relighting.py --scene <scene_file> --output <output_file>
+python analysis.py --coin 1 --compute-light --debug
 ```
-Replace `<scene_file>` with the path to your scene file and `<output_file>` with the desired path for the output file.
+
+##### Interpolation with Custom Coin and Grid Dimensions
+```bash
+python analysis.py --coin 3 --interpolate --coin-dim 256 256 --regular-grid-dim 50 50 --method RBF_cuda
+```
