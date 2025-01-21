@@ -1,26 +1,78 @@
 from compute_light import compute_light
-import subprocess
-
+import os
 import argparse
 
 if __name__ == "__main__":
     
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--coin", type=int, required=True, help="Coin number: 1, 2, 3, 4")
-    parser.add_argument("--compute-light", action="store_true", help="Compute light")
-    parser.add_argument("--interpolate", action="store_true", help="Interpolate computed light")
+    parser = argparse.ArgumentParser(description="Analysis script")
     
-    #compute light arguments
-    parser.add_argument("--debug", action="store_true", help="Debug mode", default=False)
-    parser.add_argument("--debug_moving", action="store_true", help="Debug mode moving light", default=False)
-    parser.add_argument("--debug_static", action="store_true", help="Debug mode static light", default=False)
+    parser.add_argument(
+        "--coin", 
+        type=int, 
+        choices=[1, 2, 3, 4], 
+        required=True, 
+        help="Specify the coin type to process (1, 2, 3, or 4)."
+    )
     
-    #interpolation arguments
-    parser.add_argument("--method", type=str)
-    parser.add_argument("--nprocesses", type=int, default=-1)
+    parser.add_argument(
+        "--compute-light", 
+        action="store_true", 
+        help="Enable light computation."
+    )
     
-    parser.add_argument("--coin_dim", type=int, nargs='+', default=[256, 256])
-    parser.add_argument("--regular_grid_dim", type=int, nargs='+', default=[100, 100])
+    parser.add_argument(
+        "--interpolate", 
+        action="store_true", 
+        help="Enable interpolation for computed light."
+    )
+
+    # Compute light arguments
+    parser.add_argument(
+        "--debug", 
+        action="store_true", 
+        help="Enable debug mode for general processing."
+    )
+    parser.add_argument(
+        "--debug-moving", 
+        action="store_true", 
+        help="Enable debug mode for moving light."
+    )
+    parser.add_argument(
+        "--debug-static", 
+        action="store_true", 
+        help="Enable debug mode for static light."
+    )
+
+    # Interpolation arguments
+    parser.add_argument(
+        "--method", 
+        type=str, 
+        choices=["RBF", "PTM", "RBF_cuda"],  
+        help="Interpolation method"
+    )
+    parser.add_argument(
+        "--nprocesses", 
+        type=int, 
+        default=-1, 
+        help="Number of processes for interpolation (-1 to use all available)."
+    )
+
+    parser.add_argument(
+        "--coin-dim", 
+        type=int, 
+        nargs=2, 
+        default=[512, 512], 
+        metavar=("WIDTH", "HEIGHT"), 
+        help="Dimensions of the coin (default: [512, 512])."
+    )
+    parser.add_argument(
+        "--regular-grid-dim", 
+        type=int, 
+        nargs=2, 
+        default=[100, 100], 
+        metavar=("ROWS", "COLS"), 
+        help="Dimensions of the regular grid (default: [100, 100])."
+    )
     
     args = parser.parse_args()
     
@@ -29,31 +81,37 @@ if __name__ == "__main__":
         exit()
         
     if args.interpolate and args.method is None:
-        print("Choose a method for interpolation: --method RBF or PTM")
+        print("Choose a method for interpolation: --method RBF or PTM or RBF_cuda")
+        exit()
+        
+    if args.interpolate and args.nprocesses < -1:
+        print("Number of processes must be greater than -1")
         exit()
     
-    print(args)
+    if args.compute_light and not args.interpolate and (args.method is not None or args.nprocesses != -1):
+        print("WARNING: Interpolation method and number of processes will be ignored for light computation!")
+    
+    if args.interpolate and not args.compute_light and (args.debug or args.debug_moving or args.debug_static):
+        print("WARNING: Debug flags are ignored for interpolation without light computation!")
     
     if args.compute_light:
-        compute_light(coin_number=args.coin, 
-                        debug=args.debug, 
-                        debug_moving=args.debug_moving, debug_static=args.debug_static)
+        print(f"Computing light for coin {args.coin} with debug={args.debug}, debug_moving={args.debug_moving}, debug_static={args.debug_static}")
+        compute_light(args.coin, args.debug, args.debug_moving, args.debug_static)
     
     if args.interpolate:
-        filename = f"coin{args.coin}"
-        regular_grid_dim = tuple(args.regular_grid_dim)
-        resize_dim = tuple(args.coin_dim)
-        nprocesses = args.nprocesses
-        method = args.method
         
-        execution_string = f"python3 src/interpolation.py"
-        execution_string += f" --filename {filename}"
-        execution_string += f" --coin_dim {resize_dim[0]} {resize_dim[1]}"
-        execution_string += f" --regular_grid_dim {regular_grid_dim[0]} {regular_grid_dim[1]}"
-        execution_string += f" --method {method}"
-        execution_string += f" --nprocesses {nprocesses}"
+        string_to_print = f"Interpolating light for coin {args.coin} with method={args.method}"
+        if args.method=="RBF":
+            string_to_print += f", nprocesses={args.nprocesses}"
+        print(string_to_print)
         
-        print(execution_string)
-        if nprocesses == -1 or nprocesses > 1:
-            execution_string = f"export OMP_NUM_THREADS=1; export MKL_NUM_THREADS=1; {execution_string}"
-        subprocess.call(execution_string, shell=True)
+        # Set environment variables for scipy RBF method with multiple processes 
+        if args.method == "RBF" and (args.nprocesses == -1 or args.nprocesses > 1):
+            os.environ["OMP_NUM_THREADS"] = "1"
+            os.environ["MKL_NUM_THREADS"] = "1"
+            os.environ["OPENBLAS_NUM_THREADS"] = "1"
+            os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+            os.environ["NUMEXPR_NUM_THREADS"] = "1"
+        
+        from interpolation import interpolation
+        interpolation(args.coin, tuple(args.coin_dim), tuple(args.regular_grid_dim), args.method, args.nprocesses)

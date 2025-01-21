@@ -1,18 +1,12 @@
 import os
+from typing import Tuple
 import numpy as np
 import cv2 as cv
 import moviepy as mp
-
 import multiprocessing
-
 from calibration import load_camera_parameters
-
-import matplotlib.pyplot as plt
 import librosa
-
 from tqdm import tqdm
-
-import argparse
 
 # Paths to the input videos
 static_path = "./data/cam1 - static/"
@@ -22,18 +16,30 @@ moving_path = "./data/cam2 - moving light/"
 aligned_static_path = "./data_aligned/cam1 - static/"
 aligned_moving_path = "./data_aligned/cam2 - moving light/"
 
-def align_videos(video1_path, video2_path, audio_sr=10000):
+def align_videos(video1_path:str, video2_path:str, audio_sr:int=10000)->None:
+    """
+    Align two videos based on their audio tracks:
+    1) Extract audio tracks.
+    2) Find time offset and crop videos accordingly.
+    3) Set fps to 30 for both videos.
+    4) Set duration to the shorter video.
+    5) Write the aligned videos to disk.
 
-    def extract_audio_from_video(video_path):
+    Args:
+        video1_path (str): video path for the static camera.
+        video2_path (str): video path for the moving light camera.
+        audio_sr (int, optional): sample rate for the audio tracks to use. Defaults to 10000.
+    """
+
+    def extract_audio_from_video(video_path:str)->Tuple[np.ndarray, int]:
         """
         Extract and load audio from a video file.
 
-        Parameters:
-        - video_path: str, path to the video file.
-        - sr: int, target sample rate for the audio.
+        Args:
+            video_path: (str): path to the video file.
 
         Returns:
-        - audio: ndarray, extracted mono audio signal at the specified sample rate.
+            Tuple[np.ndarray, int]: audio signal mono channel and sample rate.
         """
         # Load the video file
         video = mp.VideoFileClip(video_path)
@@ -46,21 +52,26 @@ def align_videos(video1_path, video2_path, audio_sr=10000):
         return audio, video.audio.fps
 
 
-    def find_offset(audio1, audio2, sr):
+    def find_offset(audio1:np.ndarray, audio2:np.ndarray, sr:int, sec:int=15)->float:
         """
-        Find the time offset between two audio tracks using cross-correlation.
+        Find the time offset between two audio tracks using cross-correlation:
+        1) Limit the audio signals to the first sec seconds.
+        2) Compute cross-correlation.
+        3) Find the index of the maximum correlation.
+        4) Convert delay to time offset in seconds.
 
-        Parameters:
-        - audio1: ndarray, first audio signal.
-        - audio2: ndarray, second audio signal.
-        - sr: int, sample rate of the audio signals.
+        Args:
+            audio1: (ndarray): first audio signal.
+            audio2: (ndarray): second audio signal.
+            sr: (int): sample rate of the audio signals.
 
         Returns:
-        - time_offset: float, time offset in seconds where audio2 should be shifted
-                    to align with audio1.
+            float: time offset in seconds. 
+            If positive, audio2 should be shifted to align with audio1.
+            If negative, audio1 should be shifted to align with audio2.
         """
         # Ensure audio1 and audio2 have the same length for comparison
-        max_len = min(len(audio1), len(audio2), 15 * sr)  # Limit to the first 15 seconds
+        max_len = min(len(audio1), len(audio2), sec * sr)  # Limit to the first sec seconds
         audio1 = audio1[:max_len]
         audio2 = audio2[:max_len]
 
@@ -75,8 +86,18 @@ def align_videos(video1_path, video2_path, audio_sr=10000):
 
         return time_offset
 
-    def crop_video(video_path, offset):
-        """Crop video based on the offset."""
+    def crop_video(video_path:str, offset:float)->mp.VideoFileClip:
+        """
+        Crop video based on the offset.
+
+        Args:
+            video_path (str): path to the video file.
+            offset (float): time offset in seconds.
+        
+        Returns:
+            VideoFileClip: cropped video.
+        """
+        
         video = mp.VideoFileClip(video_path)
         video = video.subclipped(offset, video.duration)
         
@@ -91,14 +112,14 @@ def align_videos(video1_path, video2_path, audio_sr=10000):
         print("The videos are already aligned")
         return
     
-    # Extract audio tracks
+    #1) Extract audio tracks
     audio1, sr1 = extract_audio_from_video(video1_path)
     audio2, sr2 = extract_audio_from_video(video2_path)
 
     audio1 = librosa.resample(audio1, orig_sr=sr1, target_sr=audio_sr)
     audio2 = librosa.resample(audio2, orig_sr=sr2, target_sr=audio_sr)
     
-    # Find time offset
+    #2) Find time offset and crop videos accordingly
     offset = find_offset(audio1, audio2, audio_sr)
     print(f"Time offset: {offset:.2f} seconds")
     
@@ -109,17 +130,16 @@ def align_videos(video1_path, video2_path, audio_sr=10000):
         video1 = mp.VideoFileClip(video1_path)
         video2 = crop_video(video2_path, offset) 
 
-    #set fps to 30
+    #3) Set fps to 30 for both videos
     video1 = video1.with_fps(30)
     video2 = video2.with_fps(30)
     
-    #set duration to the shorter video
+    #4) Set duration to the shorter video
     duration = min(video1.duration, video2.duration)
     video1 = video1.subclipped(0, duration)
     video2 = video2.subclipped(0, duration)
     
-    # Write the aligned videos to disk
-    
+    #5) Write the aligned videos to disk
     os.makedirs(aligned_static_path, exist_ok=True)
     os.makedirs(aligned_moving_path, exist_ok=True)
     
@@ -129,11 +149,27 @@ def align_videos(video1_path, video2_path, audio_sr=10000):
     video1.write_videofile(output1, codec="libx264", preset="ultrafast", threads=multiprocessing.cpu_count(), audio=True)
     video2.write_videofile(output2, codec="libx264", preset="ultrafast", threads=multiprocessing.cpu_count(), audio=True)
 
-def detect_fiducial_marker(image, threshold=100, debug=False):
+def detect_fiducial_marker(image:np.ndarray, threshold:int=100, debug:bool=False)->Tuple[np.ndarray, np.ndarray]:
+    """
+    Detect the fiducial marker in an image:
+    1) Threshold the image.
+    2) Find contours.
+    3) Simplify the contours: Ramer-Douglas-Peucker algorithm.
+    4) Validate the contours with a white dot (midpoint).
+    5) Order the points clockwise.
+
+    Args:
+        image (np.ndarray): image to detect the marker.
+        threshold (int, optional): initial threshold to use for thresholding. Defaults to 100.
+        debug (bool, optional): show the binary image. Defaults to False.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: detected marker and midpoint.
+    """
     
     image_grey = cv.cvtColor(image, cv.COLOR_RGB2GRAY)
 
-    # Step 1: Otsu's Thresholding
+    # Step 1: Thresholding
     
     #if auto_threshold:
     #    _, binary = cv.threshold(image_grey, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
@@ -226,11 +262,32 @@ def detect_fiducial_marker(image, threshold=100, debug=False):
     
     return order_points_clockwise(marker, midpoint), midpoint
 
-def find_nearest_point(points, point):
+def find_nearest_point(points:np.ndarray, point:np.ndarray)->np.ndarray:
+    """
+    Find the nearest point to a given point.
+
+    Args:
+        points (np.ndarray): points to search from.
+        point (np.ndarray): point to find the nearest point to.
+
+    Returns:
+        np.ndarray: Nearest point.
+    """
     distances = np.linalg.norm(points - point, axis=1)
     return points[np.argmin(distances)]
     
-def plot_fiducial_marker(image, marker, midpoint):
+def plot_fiducial_marker(image:np.ndarray, marker:np.ndarray, midpoint:np.ndarray)->np.ndarray:
+    """
+    Plot the fiducial marker on the image.
+
+    Args:
+        image (np.ndarray): image to plot the marker.
+        marker (np.ndarray): marker to plot.
+        midpoint (np.ndarray): midpoint of the marker.
+
+    Returns:
+        np.ndarray: Image with the plotted marker.
+    """
     
     colors = [
         (0, 0, 225),   # Red
@@ -263,10 +320,17 @@ def plot_fiducial_marker(image, marker, midpoint):
         
     return image
 
-def order_points_clockwise(points, midpoint):
-    
-    if points is None or midpoint is None:
-        return None
+def order_points_clockwise(points:np.ndarray, midpoint:np.ndarray)->np.ndarray:
+    """
+    Sort the points in clockwise order starting from the nearest point to the midpoint.
+
+    Args:
+        points (np.ndarray): points to sort.
+        midpoint (np.ndarray): point to start the sorting from.
+
+    Returns:
+        np.ndarray: sorted points.
+    """
     
     points = np.array(points)  # Ensure points are a NumPy array
 
@@ -289,7 +353,19 @@ def order_points_clockwise(points, midpoint):
 
     return sorted_points
 
-def plot_light_source(u,v, convert=True, image_size=200):
+def plot_light_source(u:float, v:float, convert:bool=True, image_size:int=200)->np.ndarray:
+    """
+    Plot a light source on a black background.
+
+    Args:
+        u (float): x-coordinate of the light source in normalized coordinates (-1 to 1) or pixel coordinates.
+        v (float): y-coordinate of the light source in normalized coordinates (-1 to 1) or pixel coordinates.
+        convert (bool, optional): Whether to convert normalized coordinates to pixel coordinates. Defaults to True.
+        image_size (int, optional): Size of the output image. Defaults to 200.
+
+    Returns:
+        np.ndarray: Image with the plotted light source.
+    """
     
     if convert:
         u = int(((u + 1) / 2) * (image_size-1))
@@ -306,7 +382,25 @@ def plot_light_source(u,v, convert=True, image_size=200):
     
     return image
 
-def getLightPose(objectPoints, imagePoints, cameraMatrix, dist, method="Homography"):
+def calculateLightPosition(objectPoints:np.ndarray, imagePoints:np.ndarray, 
+                            cameraMatrix:np.ndarray, dist:np.ndarray, 
+                            method="Homography")->np.ndarray:
+    """
+    Compute the light source position from the object and image points.
+
+    Args:
+        objectPoints (np.ndarray): "3D" object points: 4x3 array.
+        imagePoints (np.ndarray): 2D image points: 4x2 array.
+        cameraMatrix (np.ndarray): intrinsic camera matrix.
+        dist (np.ndarray): distortion coefficients.
+        method (str, optional): Method to compute the light source: "PnP" or "Homography". Defaults to "Homography".
+
+    Raises:
+        ValueError: if the solvePnP method fails.
+
+    Returns:
+        np.ndarray: Light source position.
+    """
     
     if method == "PnP":
         
@@ -341,17 +435,21 @@ def getLightPose(objectPoints, imagePoints, cameraMatrix, dist, method="Homograp
     res = -R.T @ t
     res = res / np.linalg.norm(res)
     
-    #print(res)
-    
-    if np.sqrt(res[0]**2 + res[1]**2) > 1:
-        print("Error: Light source outside the unit circle")
-    
-    if res[2] < 0:
-        print("Error: Light source behind the camera")
+    assert np.sqrt(res[0]**2 + res[1]**2) <= 1, "Error: Light source outside the unit circle"
+    assert res[2] >= 0, "Error: Light source behind the camera"
     
     return res
 
-def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=False): 
+def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=False)->None: 
+    """
+    Compute the light directions for a given coin number.
+
+    Args:
+        coin_number (int): Number of the coin to compute the light source: 1, 2, 3, or 4.
+        debug (bool, optional): Debug flag: show static and moving frames and the corresponding light direction. Defaults to True.
+        debug_moving (bool, optional): show the thresholded moving frame. Defaults to False.
+        debug_static (bool, optional): show the thresholded static frame. Defaults to False.
+    """
 
     filename = f"coin{coin_number}"
     
@@ -446,7 +544,7 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
         x, y, w, h = cv.boundingRect(marker_moving)
         marker_reference_points = np.array([[0, 0, 1], [0, h, 1], [w, h, 1], [w, 0, 1]  ], dtype=np.float32)
         
-        res = getLightPose(objectPoints=marker_reference_points,
+        res = calculateLightPosition(objectPoints=marker_reference_points,
                             imagePoints=marker_moving.astype(np.float32),
                             cameraMatrix=mtx, dist=dist)
         
@@ -477,7 +575,22 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
     result_path = os.path.join(result_path, f"{filename}.npz")
     np.savez(result_path, MLIC=MLIC, L_poses=L_poses, V_hat=V_hat, U_hat=U_hat)
 
-def load_light_results(filename):
+def load_light_results(filename:str)->Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Load the results of the light computation.
+
+    Args:
+        filename (str): Name of the file to load: "coin1", "coin2", "coin3", or "coin4".
+
+    Raises:
+        FileNotFoundError: if the file is not found.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: MLIC, L_poses, U_hat, V_hat. 
+        
+        MLIC is the light intensity coin, L_poses are the light poses, 
+        U_hat and V_hat are the U and V mean components of the coin.
+    """
     
     if not os.path.exists(f"./results_intermediate/{filename}.npz"):
         raise FileNotFoundError(f"File not found: {filename}: did you run compute_light?")
@@ -489,18 +602,3 @@ def load_light_results(filename):
     V_hat = results['V_hat']
     
     return MLIC, L_poses, U_hat, V_hat
-    
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--coin", type=str, required=True, help="Coin number: 1, 2, 3, 4")
-    
-    parser.add_argument("--debug", action="store_true", help="Debug mode", default=True)
-    parser.add_argument("--debug_moving", action="store_true", help="Debug mode moving light", default=False)
-    parser.add_argument("--debug_static", action="store_true", help="Debug mode static light", default=False)
-    
-    args = parser.parse_args()
-    
-    compute_light(args.coin, 
-                    debug=args.debug, 
-                    debug_moving=args.debug_moving, 
-                    debug_static=args.debug_static)

@@ -28,10 +28,6 @@ def set_light(x, y):
 def mouse_callback(event,x,y,flags,param):
     
     global drawing
-    
-    #if (x - 100)**2 + (y - 100)**2 <= 100**2:
-    
-    print(x,y)
         
     if event == cv.EVENT_LBUTTONDOWN:
         drawing = True
@@ -43,20 +39,25 @@ def mouse_callback(event,x,y,flags,param):
         drawing = False
         set_light(x, y)
 
-def relighting(coin_number:int, method:str):
+def relighting(coin_number:int, method:str, coin_dim_input:tuple, regular_grid_dim_input:tuple):
     
-    if not os.path.exists(f"./results/{method}/coin{coin_number}.npz"):
-        raise FileNotFoundError(f"File ./results/{method}/coin{coin_number}.npz not found: did you run the interpolation using {method} ?")
+    coin_path = f"./results/{method}/coin{coin_number}_{coin_dim_input}_{regular_grid_dim_input}.npz"
     
-    loaded = np.load(f"./results/{method}/coin{coin_number}.npz", allow_pickle=True)
+    if not os.path.exists(coin_path):
+        raise FileNotFoundError(f"File '{coin_path}' not found: did you run the interpolation using {method} with coin{coin_number}, coin dimensions {coin_dim_input} and regular grid dimensions {regular_grid_dim_input}?")
+    
+    loaded = np.load(coin_path, allow_pickle=True)
     regular_grids = loaded["regular_grids"]
     regular_grid_dim = loaded["regular_grid_dim"]
     coin_dim = loaded["coin_dim"]
     
     print("Regular grid loaded")
     
+    assert coin_dim[0] == coin_dim_input[0] and coin_dim[1] == coin_dim_input[1], f"Coin dimensions do not match: {coin_dim} != {coin_dim_input}"
+    assert regular_grid_dim[0] == regular_grid_dim_input[0] and regular_grid_dim[1] == regular_grid_dim_input[1], f"Regular grid dimensions do not match: {regular_grid_dim} != {regular_grid_dim_input}"
+    
     # Load data
-    MLIC, L_poses, U_hat, V_hat = load_light_results("coin1")
+    MLIC, L_poses, U_hat, V_hat = load_light_results(f"coin{coin_number}")
     U_hat = cv.resize(U_hat, coin_dim).astype(np.uint8)
     V_hat = cv.resize(V_hat, coin_dim).astype(np.uint8)
     
@@ -70,19 +71,10 @@ def relighting(coin_number:int, method:str):
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
         
-        coin = np.zeros((coin_dim[0], coin_dim[1], 1), dtype=np.uint8)
-        
         nearest_point = find_nearest_point(directions_grid, np.array([y_inp, x_inp]))
-        
-        
-        #print(np.array([y_inp, x_inp]),nearest_point)
-        
         y_grid, x_grid, = nearest_point
         
-        coin = regular_grids[:,:,y_grid,x_grid]#.astype(np.uint8)
-        
-        #print(coin.max())
-        
+        coin = regular_grids[:,:,y_grid,x_grid]
         coin = np.concatenate((np.expand_dims(coin, axis=2), 
                                 np.expand_dims(U_hat, axis=2), 
                                 np.expand_dims(V_hat, axis=2)), axis=2)
@@ -96,6 +88,13 @@ if __name__ == "__main__":
     parser.add_argument("--coin", type=int, required=True, help="Coin number: 1, 2, 3, 4")
     parser.add_argument("--method", type=str, required=True, 
                         help="Method of interpolation to visualize",
-                        choices=["RBF", "PTM"])
+                        choices=["RBF", "PTM", "RBF_cuda"])
+    parser.add_argument("--coin-dim", type=int, nargs=2, required=True, help="Coin dimensions")
+    parser.add_argument("--regular-grid-dim", type=int, nargs=2, required=True, help="Regular grid dimensions")
+    
     args = parser.parse_args()
-    relighting(args.coin, args.method)
+    
+    coin_dim = tuple(args.coin_dim)
+    regular_grid_dim = tuple(args.regular_grid_dim)
+    
+    relighting(args.coin, args.method, coin_dim, regular_grid_dim)
