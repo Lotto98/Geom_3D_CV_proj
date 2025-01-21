@@ -592,10 +592,12 @@ def load_light_results(filename:str)->Tuple[np.ndarray, np.ndarray, np.ndarray, 
         U_hat and V_hat are the U and V mean components of the coin.
     """
     
-    if not os.path.exists(f"./results_intermediate/{filename}.npz"):
-        raise FileNotFoundError(f"File not found: {filename}: did you run compute_light?")
+    path = f"results_intermediate/{filename}.npz"
     
-    results = np.load(f"./results_intermediate/{filename}.npz")
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"File not found: '{path}': did you run compute_light?")
+    
+    results = np.load(path)
     MLIC = results['MLIC']
     L_poses = results['L_poses']
     U_hat = results['U_hat']

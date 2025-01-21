@@ -92,7 +92,7 @@ def interpolation(coin_number:int, coin_dim:Tuple[int, int], regular_grid_dim:Tu
         nprocesses = multiprocessing.cpu_count()
     
     # Load data
-    filename = f"coin{coin_number}.npz"
+    filename = f"coin{coin_number}"
     MLIC, L_poses, U_hat, V_hat = load_light_results(filename)
 
     # Resize images to the desired dimensions
