@@ -4,6 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "Python Debugger: calibation",
             "type": "debugpy",
@@ -13,6 +14,18 @@
             "args": [
                 "--name",
                 "moving_light"
+            ]
+        },
+        {
+            "name": "Python: analysis --reglighting",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "src/analysis.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--coin",
+                "1",
+                "--compute-light"
             ]
         }
     ]

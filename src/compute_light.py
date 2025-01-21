@@ -179,18 +179,14 @@ def detect_fiducial_marker(image:np.ndarray, threshold:int=100, debug:bool=False
     # Step 2: Morphological Operations (to remove noise)
     kernel = cv.getStructuringElement(cv.MORPH_RECT, (2, 2))
     binary = cv.morphologyEx(binary, cv.MORPH_CLOSE, kernel)
-    
-    if debug:
-        cv.namedWindow("Binary", cv.WINDOW_NORMAL)
-        cv.resizeWindow("Binary", 640, 480)
-        cv.imshow("Binary", binary)
 
     # Step 3: Find contours (hierarchical)
     contours, hierarchy = cv.findContours(binary, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
 
     if hierarchy is None:
         # should not happen
-        return None, None 
+        print("No hierarchy found")
+        return None, None, binary
 
     # Prepare list for detected markers
     detected_markers = {}
@@ -259,8 +255,11 @@ def detect_fiducial_marker(image:np.ndarray, threshold:int=100, debug:bool=False
         
         marker = valid_markers[idx]
         midpoint = valid_midpoints[idx]
+        
+    elif len(valid_markers) == 0:
+        return None, None, binary
     
-    return order_points_clockwise(marker, midpoint), midpoint
+    return order_points_clockwise(marker, midpoint), midpoint, binary
 
 def find_nearest_point(points:np.ndarray, point:np.ndarray)->np.ndarray:
     """
@@ -469,10 +468,18 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
         cv.namedWindow("Moving", cv.WINDOW_NORMAL)
         cv.resizeWindow("Static", 640, 480)
         cv.resizeWindow("Moving", 640, 480)
+    
+    if debug_static:
+        cv.namedWindow("Static threshold", cv.WINDOW_NORMAL)
+        cv.resizeWindow("Static threshold", 640, 480)
+    
+    if debug_moving:
+        cv.namedWindow("Moving threshold", cv.WINDOW_NORMAL)
+        cv.resizeWindow("Moving threshold", 640, 480)
 
     mtx, dist, rvecs, tvecs = load_camera_parameters("moving_light")
 
-    is_first_frame = True
+    compute_static = True
 
     skipped_static = 0
     skipped_moving = 0
@@ -495,14 +502,14 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
         if not ret_static or not ret_moving:
             break
         
-        if is_first_frame:
-            marker_static, midpoint_static = detect_fiducial_marker(frame_static, debug=debug_static)
+        if compute_static:
+            marker_static, midpoint_static, binary_static = detect_fiducial_marker(frame_static, debug=debug_static)
         
         frame_moving = cv.undistort(frame_moving, mtx, dist)
-        marker_moving, midpoint_moving = detect_fiducial_marker(frame_moving, debug=debug_moving)
+        marker_moving, midpoint_moving, binary_moving = detect_fiducial_marker(frame_moving, debug=debug_moving)
         
         if marker_static is None:
-            is_first_frame = True
+            compute_static = True
             skipped_static += 1
             bar.update(1)
             bar.desc = f"Processing frames... skipped static: {skipped_static} skipped moving: {skipped_moving}"
@@ -515,13 +522,16 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
             continue
         
         if debug:
-            cv.imshow("Static", plot_fiducial_marker(frame_static, marker_static, midpoint_static))
-            cv.imshow("Moving", plot_fiducial_marker(frame_moving, marker_moving, midpoint_moving))
+            cv.imshow("Static", plot_fiducial_marker(frame_static.copy(), marker_static, midpoint_static))
+            cv.imshow("Moving", plot_fiducial_marker(frame_moving.copy(), marker_moving, midpoint_moving))
         
-            if cv.waitKey(1) & 0xFF == ord('q'):
-                break
+        if debug_static:
+            cv.imshow("Static threshold", binary_static)
         
-        if is_first_frame:
+        if debug_moving:
+            cv.imshow("Moving threshold", binary_moving)
+        
+        if compute_static:
             #"crop" static image using the static marker
             _, _, w_static, h_static = cv.boundingRect(marker_static)
             marker_reference_points_static = np.array([ [0, 0, 1], [0, h_static, 1], 
@@ -529,7 +539,17 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
             static_homography, _ = cv.findHomography(marker_static.astype(np.float32), marker_reference_points_static)
         
         coin = cv.warpPerspective(frame_static, static_homography, (w_static,h_static))
-        coin = cv.flip(coin, 0) 
+        coin = cv.flip(coin, 0)
+        coin = cv.resize(coin, (512, 512))
+        
+        """TODO: check if this is necessary
+        if check_edges_for_black(coin, threshold=0):
+            compute_static = True
+            skipped_static += 1
+            bar.update(1)
+            bar.desc = f"Processing frames... skipped static: {skipped_static} skipped moving: {skipped_moving}"
+            continue
+        """
         
         #convert to YUV and get the Y channel
         coin_yuv = cv.cvtColor(coin, cv.COLOR_BGR2YUV)
@@ -550,15 +570,14 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
         
         L_poses.append(res)
         
-        if debug:
-            cv.imshow("Coin", coin)
-            cv.imshow("Light source", plot_light_source(res[0], res[1]))
-            
-            if cv.waitKey(1) & 0xFF == ord('q'):
-                break
+        cv.imshow("Coin", coin)
+        cv.imshow("Light source", plot_light_source(res[0], res[1]))
+        
+        if cv.waitKey(1) & 0xFF == ord('q'):
+            break
         
         bar.update(1)
-        is_first_frame = False
+        compute_static = False
         
     MLIC = np.array(MLIC)
     L_poses = np.array(L_poses)
@@ -574,6 +593,30 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
     
     result_path = os.path.join(result_path, f"{filename}.npz")
     np.savez(result_path, MLIC=MLIC, L_poses=L_poses, V_hat=V_hat, U_hat=U_hat)
+
+def check_edges_for_black(image, threshold=0):
+    #TODO: check if this is necessary
+    """
+    Controlla se i pixel lungo i bordi dell'immagine sono neri.
+    """
+    image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+    _, binary = cv.threshold(image, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+    
+    cv.imshow("Image", binary)
+    
+    height, width = binary.shape
+    top_edge = binary[0, :5]
+    bottom_edge = binary[-1, :5]
+    left_edge = binary[:5, 0] 
+    right_edge = binary[:5, -1]
+
+    # Verifica se ci sono pixel non neri lungo i bordi
+    top_black = np.all(top_edge <= threshold)
+    bottom_black = np.all(bottom_edge <= threshold)
+    left_black = np.all(left_edge <= threshold)
+    right_black = np.all(right_edge <= threshold)
+
+    return top_black or bottom_black or left_black or right_black
 
 def load_light_results(filename:str)->Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
