@@ -6,10 +6,22 @@ from typing import Tuple, List
 from tqdm import tqdm
 
 def get_frames_from_video(video_path:str, num_frames_to_select:int=20) -> List[np.ndarray]:
+    """
+    Get num_frames_to_select evenly spaced frames from the video.
+
+    Args:
+        video_path (str): Path to the video file.
+        num_frames_to_select (int, optional): number of frames to select. Defaults to 20.
+
+    Raises:
+        FileNotFoundError: Raised if the video file does not exist.
+
+    Returns:
+        List[np.ndarray]: List of selected frames.
+    """
     
     if not os.path.exists(video_path):
-        
-        raise "Video file does not exist."
+        raise FileNotFoundError(f"Video file '{video_path}' does not exist.")
     
     cap = cv.VideoCapture(video_path)
 
@@ -35,6 +47,17 @@ def get_frames_from_video(video_path:str, num_frames_to_select:int=20) -> List[n
     return selected_frames, selected_frames[0].shape[1:]
 
 def get_points(selected_frames:List[np.ndarray], chessboard_dim:Tuple[int,int], to_show:bool) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    """
+    OpenCV script to get the object points and image points from the selected frames.
+
+    Args:
+        selected_frames (List[np.ndarray]): List of selected frames.
+        chessboard_dim (Tuple[int,int]): The dimensions of the chessboard.
+        to_show (bool): show the chessboard corners.
+
+    Returns:
+        Tuple[List[np.ndarray], List[np.ndarray]]: Tuple of object points and image points.
+    """
     
     # termination criteria
     criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -50,7 +73,7 @@ def get_points(selected_frames:List[np.ndarray], chessboard_dim:Tuple[int,int], 
     if to_show:
         # Naming a window 
         cv.namedWindow("original corners", cv.WINDOW_NORMAL) 
-        cv.resizeWindow("original corners", 600, 400) 
+        cv.resizeWindow("original corners", 700, 500) 
 
     for i, frame in tqdm(enumerate(selected_frames), desc="Processing frames", total=len(selected_frames)):
         
@@ -70,8 +93,15 @@ def get_points(selected_frames:List[np.ndarray], chessboard_dim:Tuple[int,int], 
                 # Draw and display the corners
                 cv.drawChessboardCorners(frame, chessboard_dim, corners, ret)
                 cv.imshow('original corners', frame)
-                cv.waitKey(0)
-
+                
+                while True:
+                    key = cv.waitKey(1) & 0xFF
+                    if key == ord('q'):
+                        exit()
+                    elif key != 255:
+                        break
+                    if cv.getWindowProperty("original corners", cv.WND_PROP_VISIBLE) < 1:
+                        exit()
     cv.destroyAllWindows()
     
     return objpoints, imgpoints
@@ -80,6 +110,7 @@ def calibrate_camera(objpoints: List[np.ndarray],
                     imgpoints: List[np.ndarray], 
                     imagesize: Tuple[int,int], name:str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     
+    # Calibrate the camera
     ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, imagesize, None, None)
     
     if not ret:
@@ -92,24 +123,57 @@ def calibrate_camera(objpoints: List[np.ndarray],
     
     return mtx, dist, rvecs, tvecs
 
-def calculate_error(frames:List[np.ndarray], objpoints:List[np.ndarray], imgpoints: List[np.ndarray], 
-                    mtx:np.ndarray, dist: np.ndarray, rvecs: np.ndarray, tvecs: np.ndarray, to_show:bool):
+def calculate_error(frames:List[np.ndarray], 
+                    objpoints:List[np.ndarray], 
+                    imgpoints: List[np.ndarray], 
+                    mtx:np.ndarray, 
+                    dist: np.ndarray, 
+                    rvecs: np.ndarray, 
+                    tvecs: np.ndarray, 
+                    to_show:bool,
+                    chessboard_dim:tuple) -> None:
+    """
+    Calculate the error of the calibration.
+
+    Args:
+        frames (List[np.ndarray]): list of selected frames.
+        objpoints (List[np.ndarray]): list of object points, one for each frame.
+        imgpoints (List[np.ndarray]): list of image points, one for each frame.
+        mtx (np.ndarray): the intrinsic camera matrix.
+        dist (np.ndarray): the distortion coefficients.
+        rvecs (np.ndarray): the rotation vectors.
+        tvecs (np.ndarray): the translation vectors.
+        to_show (bool): show the projected corners.
+        chessboard_dim (tuple): the dimensions of the chessboard.
+    """
     
     if to_show:
         # Naming a window 
         cv.namedWindow("projected corners test", cv.WINDOW_NORMAL) 
-        cv.resizeWindow("projected corners test", 600, 400) 
+        cv.resizeWindow("projected corners test", 700, 500) 
     
     mean_error = 0
     for i, img in zip(range(len(objpoints)), frames):
+        
+        # project the corners for each frame to check the error
         imgpoints2, _ = cv.projectPoints(objpoints[i], rvecs[i], tvecs[i], mtx, dist)
         error = cv.norm(imgpoints[i],imgpoints2, cv.NORM_L2)/len(imgpoints2)
+        
         print(f"error for frame {i}: ",error)
         
         if to_show:
-            cv.drawChessboardCorners(img, (9,6), imgpoints2, True)
+            #show the projected corners
+            cv.drawChessboardCorners(img, chessboard_dim, imgpoints2, True)
             cv.imshow('projected corners test', img)
-            cv.waitKey(0)
+            
+            while True:
+                key = cv.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    exit()
+                elif key != 255:
+                    break
+                if cv.getWindowProperty("projected corners test", cv.WND_PROP_VISIBLE) < 1:
+                    exit()
         
         mean_error += error
     
@@ -117,6 +181,19 @@ def calculate_error(frames:List[np.ndarray], objpoints:List[np.ndarray], imgpoin
     cv.destroyAllWindows()
     
 def load_camera_parameters(name:str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Load the camera parameters from the file.
+
+    Args:
+        name (str): Name of the camera to load the parameters for.
+
+    Raises:
+        FileNotFoundError: Raised if the file does not exist.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: 
+        Tuple containing the intrinsic camera matrix, distortion coefficients, rotation vectors and translation
+    """
     
     if not os.path.exists(f'calibration/param_{name}.npz'):
         raise FileNotFoundError(f"File calibration/param_{name}.npz not found: did you run the calibration for {name} ?")
@@ -130,7 +207,17 @@ def load_camera_parameters(name:str) -> Tuple[np.ndarray, np.ndarray, np.ndarray
     
     return mtx, dist, rvecs, tvecs
 
-def main(name:str, chessboard_dim:Tuple[int,int], num_frames:int, to_show:bool, to_calculate_error:bool):
+def main_calibration(name:str, chessboard_dim:Tuple[int,int], num_frames:int, to_show:bool, to_calculate_error:bool):
+    """
+    Main function to calibrate the camera.
+
+    Args:
+        name (str): Name of the camera setup to calibrate.
+        chessboard_dim (Tuple[int,int]): The dimensions of the chessboard.
+        num_frames (int): Number of frames to select from the video.
+        to_show (bool): Show the chessboard corners and projected corners.
+        to_calculate_error (bool): Calculate the error of the calibration.
+    """
     
     if name == "moving_light":
         video_path = './data/cam2 - moving light/calibration.mp4'
@@ -146,19 +233,25 @@ def main(name:str, chessboard_dim:Tuple[int,int], num_frames:int, to_show:bool, 
     mtx, dist, rvecs, tvecs = calibrate_camera(objpoints, imgpoints, image_size, name=name)
 
     if to_calculate_error:
-        calculate_error(frames, objpoints, imgpoints, mtx, dist, rvecs, tvecs, to_show=to_show)
-
+        calculate_error(frames, objpoints, imgpoints, mtx, dist, rvecs, tvecs, to_show=to_show, chessboard_dim=chessboard_dim)
 
 if __name__ == "__main__":
     
     import argparse
     parser = argparse.ArgumentParser(description='Calibrate camera using chessboard images.')
     parser.add_argument('--name', type=str, default='moving_light', help='Name of the camera setup (moving_light/static)')
-    parser.add_argument('--chessboard_dim', type=tuple, default=(9,6), help='Chessboard dimensions')
+    parser.add_argument('--chessboard_dim', 
+                        type=int, 
+                        nargs=2, 
+                        default=[9, 6], 
+                        metavar=("COLS", "ROWS"),  
+                        help='Chessboard dimensions')
     parser.add_argument('--num_frames', type=int, default=20, help='Number of frames to select from the video')
     
-    parser.add_argument('--debug', type=bool, default=False, action=argparse.BooleanOptionalAction, help='Show the chessboard corners and projected corners')
-    parser.add_argument('--error', type=bool, default=False, action=argparse.BooleanOptionalAction, help='Calculate the error')
+    parser.add_argument('--debug', type=bool, default=False, action=argparse.BooleanOptionalAction, 
+                        help='Show the chessboard corners and projected corners')
+    parser.add_argument('--error', type=bool, default=False, action=argparse.BooleanOptionalAction, 
+                        help='Calculate the error')
     args = parser.parse_args()
     
     name = args.name
@@ -169,16 +262,6 @@ if __name__ == "__main__":
     to_calculate_error = args.error
     
     # Print a summary of the parameters
-    print(f"Name of the calibration video: {name}")
-    print(f"Chessboard dimensions: {chessboard_dim}")
-    print(f"Number of frames: {num_frames}")
-    print(f"Debug: {to_show}")
-    print(f"Calculate error: {to_calculate_error}")
+    print(args)
     
-    # ask the user if they want to continue
-    response = input("Do you want to continue? (y/n): ")
-    if response.lower() != 'y':
-        print("Exiting the program.")
-        exit()
-    
-    main(name, chessboard_dim, num_frames, to_show, to_calculate_error)
+    main_calibration(name, chessboard_dim, num_frames, to_show, to_calculate_error)
