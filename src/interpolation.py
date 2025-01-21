@@ -10,7 +10,7 @@ import torch
 import os
 from scipy.interpolate import Rbf
 
-def compute_ptm_coefficients_2d(MLIC, light_poses):
+def compute_ptm_coefficients_2d(MLIC:np.ndarray, light_poses:np.ndarray) -> np.ndarray:
     """
     Compute PTM coefficients for each pixel using 2D light poses.
     
@@ -39,7 +39,7 @@ def compute_ptm_coefficients_2d(MLIC, light_poses):
     
     return coeffs.T.reshape(H, W, 6)
 
-def render_ptm_2d(coeffs, light_dir):
+def render_ptm_2d(coeffs:np.ndarray, light_dir:np.ndarray) -> np.ndarray:
     """
     Render a PTM image under a given 2D light direction.
     
@@ -57,31 +57,78 @@ def render_ptm_2d(coeffs, light_dir):
     rendered = np.clip(rendered, 0, 255).astype(np.uint8)  # Ensure valid pixel range
     return rendered
 
-def process_pixel_RBF(args):
+def process_pixel_RBF(args)->Tuple[int, int, np.ndarray]:
+    """
+    Process a single pixel using RBF interpolation, for parallel processing.
+
+    Args:
+        args: list of arguments (x, y, MLIC_resized, L_poses, directions_uv, directions_grid, regular_grid_dim) 
+
+    Returns:
+        Tuple[int, int, np.ndarray]: x, y, regular_grid for the pixel (x, y)
+    """
+    # Unpack arguments
     x, y, MLIC_resized, L_poses, directions_uv, directions_grid, regular_grid_dim = args
     
+    # Perform RBF interpolation
     model_xy = Rbf(L_poses[:, 0], L_poses[:, 1], MLIC_resized[:, y, x], function='linear', smooth=1, )
+    
+    # Compute values for the regular grid
     values = model_xy(directions_uv[:, 0], directions_uv[:, 1])
     values = np.clip(values, 0, 255)
     
+    # Populate the regular grid
     regular_grid = np.zeros(regular_grid_dim, dtype=np.uint8)
     regular_grid[directions_grid[:, 1], directions_grid[:, 0]] = values
     
     return x, y, regular_grid
 
-def process_pixel_RBF_cuda(x, y, val_train, directions_train, direction_inference, directions_grid, regular_grid_dim ):
+def process_pixel_RBF_cuda(x:int, y:int, val_train:torch.Tensor, directions_train:torch.Tensor, 
+                            direction_inference:torch.Tensor, directions_grid:np.ndarray, 
+                            regular_grid_dim:np.ndarray)->Tuple[int, int, np.ndarray]:
+    """
+    Process a single pixel using RBF interpolation, for cuda processing.
+
+    Args:
+        x (int): x-coordinate of the pixel
+        y (int): y-coordinate of the pixel
+        val_train (torch.Tensor): values of intensity for each light direction for the pixel (x, y)
+        directions_train (torch.Tensor): light directions computed by analysis.py
+        direction_inference (torch.Tensor): light directions for the regular grid in UV space
+        directions_grid (np.ndarray): light directions for the regular grid in grid space
+        regular_grid_dim (np.ndarray): dimensions of the regular grid
+
+    Returns:
+        Tuple[int, int, np.ndarray]: x, y, regular_grid for the pixel (x, y)
+    """
     
+    # Perform RBF interpolation
     model_xy = torchrbf.RBFInterpolator(directions_train, val_train[:, y, x], kernel='linear', smoothing=1, device="cuda")
     
+    # Compute values for the regular grid
     values = model_xy(direction_inference)
     values = np.clip(values.cpu().numpy(), 0, 255)
     
+    # Populate the regular grid
     regular_grid = np.zeros(regular_grid_dim, dtype=np.uint8)
     regular_grid[directions_grid[:, 1], directions_grid[:, 0]] = values
     
     return x, y, regular_grid
 
 def interpolation(coin_number:int, coin_dim:Tuple[int, int], regular_grid_dim:Tuple[int, int], method:str, nprocesses:int=-1):
+    """
+    Interpolate the light for a given coin using the specified method and save the results to disk.
+
+    Args:
+        coin_number (int): coin number to interpolate.
+        coin_dim (Tuple[int, int]): coin image dimensions.
+        regular_grid_dim (Tuple[int, int]): regular grid dimensions.
+        method (str): interpolation method.
+        nprocesses (int, optional): number of processors to use. Defaults to -1. RBF only.
+
+    Raises:
+        ValueError: if the method is not recognized. 
+    """
 
     if nprocesses == -1:
         nprocesses = multiprocessing.cpu_count()
@@ -132,6 +179,7 @@ def interpolation(coin_number:int, coin_dim:Tuple[int, int], regular_grid_dim:Tu
         
     elif method == "RBF_cuda":
         
+        # Prepare data for CUDA processing
         directions_train = torch.tensor(L_poses[:, 0:2], dtype=torch.float32).cuda()
         val_train = torch.tensor(MLIC_resized, dtype=torch.float32).cuda()
         direction_inference = torch.tensor(directions_uv[:, 0:2], dtype=torch.float32).cuda()
