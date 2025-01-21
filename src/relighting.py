@@ -79,7 +79,7 @@ def relighting(coin_number:int, method:str, coin_dim_input:tuple, regular_grid_d
                                 np.expand_dims(U_hat, axis=2), 
                                 np.expand_dims(V_hat, axis=2)), axis=2)
         
-        coin = cv.cvtColor(coin, cv.COLOR_YUV2RGB)
+        coin = cv.cvtColor(coin, cv.COLOR_YUV2BGR)
         
         cv.imshow("Coin", cv.resize(coin, (512,512)))
 

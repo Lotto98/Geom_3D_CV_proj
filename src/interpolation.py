@@ -118,7 +118,7 @@ def interpolation(coin_number:int, coin_dim:Tuple[int, int], regular_grid_dim:Tu
 
         # Collect the results
         regular_grids = np.zeros((coin_dim[1], coin_dim[0], regular_grid_dim[1], regular_grid_dim[0]), dtype=np.uint8)
-        for x, y, regular_grid in results:
+        for x, y, regular_grid in tqdm(results, desc="Collecting results"):
             regular_grids[y, x] = regular_grid
             
     elif method == "PTM":
@@ -144,7 +144,7 @@ def interpolation(coin_number:int, coin_dim:Tuple[int, int], regular_grid_dim:Tu
         
         # Collect the results
         regular_grids = np.zeros((coin_dim[1], coin_dim[0], regular_grid_dim[1], regular_grid_dim[0]), dtype=np.uint8)
-        for x, y, regular_grid in results:
+        for x, y, regular_grid in tqdm(results, desc="Collecting results"):
             regular_grids[y, x] = regular_grid
     else:
         raise ValueError(f"Method {method} not recognized")

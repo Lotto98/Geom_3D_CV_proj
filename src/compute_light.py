@@ -149,7 +149,10 @@ def align_videos(video1_path:str, video2_path:str, audio_sr:int=10000)->None:
     video1.write_videofile(output1, codec="libx264", preset="ultrafast", threads=multiprocessing.cpu_count(), audio=True)
     video2.write_videofile(output2, codec="libx264", preset="ultrafast", threads=multiprocessing.cpu_count(), audio=True)
 
-def detect_fiducial_marker(image:np.ndarray, threshold:int=100, debug:bool=False)->Tuple[np.ndarray, np.ndarray]:
+def detect_fiducial_marker(image:np.ndarray, 
+                            threshold:int=100, 
+                            debug:bool=False,
+                            check_aspect_ratio:bool=False)->Tuple[np.ndarray, np.ndarray]:
     """
     Detect the fiducial marker in an image:
     1) Threshold the image.
@@ -171,9 +174,10 @@ def detect_fiducial_marker(image:np.ndarray, threshold:int=100, debug:bool=False
 
     # Step 1: Thresholding
     
-    #if auto_threshold:
-    #    _, binary = cv.threshold(image_grey, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
+    #if threshold == -1:
+        #_, binary = cv.threshold(image_grey, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
     #else:
+    
     _, binary = cv.threshold(image_grey, threshold, 255, cv.THRESH_BINARY)
 
     # Step 2: Morphological Operations (to remove noise)
@@ -185,8 +189,7 @@ def detect_fiducial_marker(image:np.ndarray, threshold:int=100, debug:bool=False
 
     if hierarchy is None:
         # should not happen
-        print("No hierarchy found")
-        return None, None, binary
+        return detect_fiducial_marker(image, threshold=threshold-10, debug=debug, check_aspect_ratio=check_aspect_ratio)
 
     # Prepare list for detected markers
     detected_markers = {}
@@ -213,6 +216,13 @@ def detect_fiducial_marker(image:np.ndarray, threshold:int=100, debug:bool=False
         if cv.contourArea(marker) < 1000:
             continue
         
+        #check if it is a square
+        if check_aspect_ratio:
+            x, y, w, h = cv.boundingRect(marker)
+            aspect_ratio = w/h
+            if aspect_ratio < 0.8 or aspect_ratio > 1.2:
+                continue
+        
         valid = False
         for j in range(4):
             # Midpoints of corresponding vertices
@@ -233,32 +243,24 @@ def detect_fiducial_marker(image:np.ndarray, threshold:int=100, debug:bool=False
                 valid_markers.append(marker)
                 valid_midpoints.append(midpoint)
     
+    # if no valid markers are found, try again with a lower threshold if possible
     if len(valid_markers) == 0:
         if threshold > 0:
-            return detect_fiducial_marker(image, threshold=threshold-10, debug=debug)
+            return detect_fiducial_marker(image, threshold=threshold-10, debug=debug, check_aspect_ratio=check_aspect_ratio)
     
-    
+    # Step 7: Select the detected marker
     marker = None
     midpoint = None
     
+    #if there is only one valid marker, select it
     if len(valid_markers) == 1:
-        
         marker = valid_markers[0]
         midpoint = valid_midpoints[0]
-        
-    elif len(valid_markers) > 1:
-        areas = [cv.contourArea(marker) for marker in valid_markers]
-        idx = np.argmax(areas)
-        
-        if isinstance(idx, np.ndarray):
-            idx = idx[0]
-        
-        marker = valid_markers[idx]
-        midpoint = valid_midpoints[idx]
-        
-    elif len(valid_markers) == 0:
+    #if there are more than one valid markers or if there is no valid marker, return None
+    elif len(valid_markers) > 1 or len(valid_markers) == 0:
         return None, None, binary
     
+    # Step 8: Order the points of the detected marker clockwise
     return order_points_clockwise(marker, midpoint), midpoint, binary
 
 def find_nearest_point(points:np.ndarray, point:np.ndarray)->np.ndarray:
@@ -272,7 +274,10 @@ def find_nearest_point(points:np.ndarray, point:np.ndarray)->np.ndarray:
     Returns:
         np.ndarray: Nearest point.
     """
+    # Calculate the Euclidean distances
     distances = np.linalg.norm(points - point, axis=1)
+    
+    # Return the point with the minimum distance
     return points[np.argmin(distances)]
     
 def plot_fiducial_marker(image:np.ndarray, marker:np.ndarray, midpoint:np.ndarray)->np.ndarray:
@@ -292,7 +297,7 @@ def plot_fiducial_marker(image:np.ndarray, marker:np.ndarray, midpoint:np.ndarra
         (0, 0, 225),   # Red
         (255, 0, 255), # Magenta
         (255, 0, 0),   # Blue
-        (0, 102, 255) #Orange
+        (0, 102, 255) # Orange
     ]
     
     #plot the midpoint
@@ -306,6 +311,7 @@ def plot_fiducial_marker(image:np.ndarray, marker:np.ndarray, midpoint:np.ndarra
         
         coordinate_text = tuple(corner)
         
+        # Adjust the text position to avoid overlaps
         if idx==0:
             coordinate_text = (coordinate_text[0]+5, coordinate_text[1]-5)
         elif idx == 1:
@@ -343,6 +349,7 @@ def order_points_clockwise(points:np.ndarray, midpoint:np.ndarray)->np.ndarray:
     sorted_indices = np.argsort(angles)
     sorted_points = points[sorted_indices]
 
+    # Find the nearest point to the midpoint
     start_point = find_nearest_point(points, midpoint)
     
     start_index = np.where((sorted_points == start_point).all(axis=1))[0][0]
@@ -365,17 +372,20 @@ def plot_light_source(u:float, v:float, convert:bool=True, image_size:int=200)->
     Returns:
         np.ndarray: Image with the plotted light source.
     """
-    
+    # Convert normalized coordinates to pixel coordinates if necessary
     if convert:
         u = int(((u + 1) / 2) * (image_size-1))
         v = int(((v + 1) / 2) * (image_size-1))
         
         v = image_size - v - 1 
     
+    # Create a black image
     image = np.zeros((image_size, image_size, 1), dtype=np.uint8)
     
+    # Plot the unit circle
     cv.circle(image, (image_size//2, image_size//2), image_size//2, 255, 2)
     
+    # Plot the light source
     cv.circle(image, (u, v), 2, 255, -1)
     cv.line(image, (image_size//2, image_size//2), (u, v), 255, 1)
     
@@ -403,6 +413,8 @@ def calculateLightPosition(objectPoints:np.ndarray, imagePoints:np.ndarray,
     
     if method == "PnP":
         
+        raise NotImplementedError("PnP method is not implemented yet")
+        
         retval, rvec, t = cv.solvePnP(objectPoints, imagePoints, cameraMatrix, dist, flags=cv.SOLVEPNP_P3P )
         
         if not retval:
@@ -411,29 +423,34 @@ def calculateLightPosition(objectPoints:np.ndarray, imagePoints:np.ndarray,
         R, _ = cv.Rodrigues(rvec)
         
     elif method == "Homography":
+        # Compute the homography
         moving_homography, _ = cv.findHomography(objectPoints, imagePoints)
-            
-        inv_K__H = np.linalg.inv(cameraMatrix) @ moving_homography
-        r1 = inv_K__H[:, 0]
-        r2 = inv_K__H[:, 1]
-        t = inv_K__H[:, 2]
         
+        #retrieve the rotation matrix and translation vector
+        inv_K_dot_H = np.linalg.inv(cameraMatrix) @ moving_homography
+        
+        # Compute the scaling factor alpha
+        r1 = inv_K_dot_H[:, 0]
+        r2 = inv_K_dot_H[:, 1]
         alpha = 2 / (np.linalg.norm(r1) + np.linalg.norm(r2))
         
-        RT = (inv_K__H / alpha)
-        
+        # Compute the rotation matrix and translation vector
+        RT = (inv_K_dot_H / alpha)
         r1 = RT[:, 0]
         r2 = RT[:, 1]
         t = RT[:, 2]
         r3 = np.cross(r1, r2)
         Q = np.column_stack([r1, r2, r3])
         
+        # Ensure the rotation matrix is orthogonal
         U, _, Vt = np.linalg.svd(Q)
         R = U @ Vt
-        
+    
+    # Compute the light source position by inverse transformation
     res = -R.T @ t
     res = res / np.linalg.norm(res)
     
+    # Check if the light source is inside the unit circle and in front of the camera
     assert np.sqrt(res[0]**2 + res[1]**2) <= 1, "Error: Light source outside the unit circle"
     assert res[2] >= 0, "Error: Light source behind the camera"
     
@@ -450,45 +467,48 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
         debug_static (bool, optional): show the thresholded static frame. Defaults to False.
     """
 
+    # Paths to the videos
     filename = f"coin{coin_number}"
-    
     video1_path = os.path.join(static_path, filename+".mov")
     video2_path = os.path.join(moving_path, filename+".mp4")
-
-    align_videos(video1_path, video2_path)
-
     a_video1_path = os.path.join(aligned_static_path, filename+".mov")
     a_video2_path = os.path.join(aligned_moving_path, filename+".mp4")
 
+    # Align the videos if they are not already aligned
+    align_videos(video1_path, video2_path)
+
+    # Open the videos with OpenCV
     cap_static = cv.VideoCapture(a_video1_path)
     cap_moving = cv.VideoCapture(a_video2_path)
 
+    # initialize the windows
     if debug:
         cv.namedWindow("Static", cv.WINDOW_NORMAL)
         cv.namedWindow("Moving", cv.WINDOW_NORMAL)
-        cv.resizeWindow("Static", 640, 480)
+        cv.resizeWindow("Static", 480, 640)
         cv.resizeWindow("Moving", 640, 480)
-    
     if debug_static:
         cv.namedWindow("Static threshold", cv.WINDOW_NORMAL)
-        cv.resizeWindow("Static threshold", 640, 480)
-    
+        cv.resizeWindow("Static threshold", 480, 640)
     if debug_moving:
         cv.namedWindow("Moving threshold", cv.WINDOW_NORMAL)
         cv.resizeWindow("Moving threshold", 640, 480)
 
+    #load the camera parameters
     mtx, dist, rvecs, tvecs = load_camera_parameters("moving_light")
 
-    compute_static = True
-
-    skipped_static = 0
-    skipped_moving = 0
-
+    #initialize variables to store the results
     MLIC = []
     L_poses = []
-
     U_coin = []
     V_coin = []
+    
+    #initialize variables to store the skipped frames
+    skipped_static = 0
+    skipped_moving = 0
+    
+    #initialize the previous static marker
+    pre_marker_static = None
 
     print("Frames static:", cap_static.get(cv.CAP_PROP_FRAME_COUNT), "Frames moving:", cap_moving.get(cv.CAP_PROP_FRAME_COUNT))
     print("FPS static", cap_static.get(cv.CAP_PROP_FPS), "FPS moving", cap_moving.get(cv.CAP_PROP_FPS))
@@ -502,54 +522,54 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
         if not ret_static or not ret_moving:
             break
         
-        if compute_static:
-            marker_static, midpoint_static, binary_static = detect_fiducial_marker(frame_static, debug=debug_static)
+        #compute the static marker
+        marker_static, midpoint_static, binary_static = detect_fiducial_marker(frame_static, threshold=180,
+                                                                                debug=debug_static,
+                                                                                check_aspect_ratio=True)
         
+        #compute the moving marker after undistorting the frame
         frame_moving = cv.undistort(frame_moving, mtx, dist)
-        marker_moving, midpoint_moving, binary_moving = detect_fiducial_marker(frame_moving, debug=debug_moving)
+        marker_moving, midpoint_moving, binary_moving = detect_fiducial_marker(frame_moving, threshold=100,
+                                                                               debug=debug_moving)
         
-        if marker_static is None:
+        #skip the frame if the marker is not detected or if the marker is too far from the previous one
+        if marker_static is None or (pre_marker_static is not None and np.linalg.norm(pre_marker_static - marker_static) > 80):
             compute_static = True
             skipped_static += 1
             bar.update(1)
             bar.desc = f"Processing frames... skipped static: {skipped_static} skipped moving: {skipped_moving}"
             continue
         
+        #save the marker for the next iteration
+        pre_marker_static = marker_static.copy()
+        
+        #skip the frame if the marker is not detected
         if marker_moving is None:
             skipped_moving += 1
             bar.update(1)
             bar.desc = f"Processing frames... skipped static: {skipped_static} skipped moving: {skipped_moving}"
             continue
         
+        #plot the detected markers
         if debug:
             cv.imshow("Static", plot_fiducial_marker(frame_static.copy(), marker_static, midpoint_static))
             cv.imshow("Moving", plot_fiducial_marker(frame_moving.copy(), marker_moving, midpoint_moving))
         
+        #plot the binary images
         if debug_static:
             cv.imshow("Static threshold", binary_static)
-        
         if debug_moving:
             cv.imshow("Moving threshold", binary_moving)
         
-        if compute_static:
-            #"crop" static image using the static marker
-            _, _, w_static, h_static = cv.boundingRect(marker_static)
-            marker_reference_points_static = np.array([ [0, 0, 1], [0, h_static, 1], 
-                                                        [w_static, h_static, 1], [w_static, 0, 1]  ],dtype=np.float32)
-            static_homography, _ = cv.findHomography(marker_static.astype(np.float32), marker_reference_points_static)
+        #"crop" static image using the static marker
+        _, _, w_static, h_static = cv.boundingRect(marker_static)
+        marker_reference_points_static = np.array([ [0, 0, 1], [0, h_static, 1], 
+                                                    [w_static, h_static, 1], [w_static, 0, 1]  ],dtype=np.float32)
+        static_homography, _ = cv.findHomography(marker_static.astype(np.float32), marker_reference_points_static)
         
-        coin = cv.warpPerspective(frame_static, static_homography, (w_static,h_static))
+        coin = cv.warpPerspective(frame_static, static_homography, (w_static, h_static))
         coin = cv.flip(coin, 0)
         coin = cv.resize(coin, (512, 512))
-        
-        """TODO: check if this is necessary
-        if check_edges_for_black(coin, threshold=0):
-            compute_static = True
-            skipped_static += 1
-            bar.update(1)
-            bar.desc = f"Processing frames... skipped static: {skipped_static} skipped moving: {skipped_moving}"
-            continue
-        """
         
         #convert to YUV and get the Y channel
         coin_yuv = cv.cvtColor(coin, cv.COLOR_BGR2YUV)
@@ -561,15 +581,14 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
         V_coin.append(coin_yuv[:,:,2])
         
         #compute the light source
-        x, y, w, h = cv.boundingRect(marker_moving)
+        _, _, w, h = cv.boundingRect(marker_moving)
         marker_reference_points = np.array([[0, 0, 1], [0, h, 1], [w, h, 1], [w, 0, 1]  ], dtype=np.float32)
-        
         res = calculateLightPosition(objectPoints=marker_reference_points,
                             imagePoints=marker_moving.astype(np.float32),
                             cameraMatrix=mtx, dist=dist)
-        
         L_poses.append(res)
         
+        #plot the light source and the warped coin
         cv.imshow("Coin", coin)
         cv.imshow("Light source", plot_light_source(res[0], res[1]))
         
@@ -577,46 +596,25 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
             break
         
         bar.update(1)
-        compute_static = False
-        
+
+    # Release the video capture objects and close the windows
+    bar.close()
+    cap_static.release()
+    cap_moving.release()
+    cv.destroyAllWindows()
+    
+    #prepare the results to be saved
     MLIC = np.array(MLIC)
     L_poses = np.array(L_poses)
     U_hat = np.mean(np.array(U_coin), axis=0)
     V_hat = np.mean(np.array(V_coin), axis=0)
     
-    cap_static.release()
-    cap_moving.release()
-    cv.destroyAllWindows()
-    
+    #save the results to file
     result_path = f"./results_intermediate"
     os.makedirs(result_path, exist_ok=True)
     
     result_path = os.path.join(result_path, f"{filename}.npz")
     np.savez(result_path, MLIC=MLIC, L_poses=L_poses, V_hat=V_hat, U_hat=U_hat)
-
-def check_edges_for_black(image, threshold=0):
-    #TODO: check if this is necessary
-    """
-    Controlla se i pixel lungo i bordi dell'immagine sono neri.
-    """
-    image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
-    _, binary = cv.threshold(image, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
-    
-    cv.imshow("Image", binary)
-    
-    height, width = binary.shape
-    top_edge = binary[0, :5]
-    bottom_edge = binary[-1, :5]
-    left_edge = binary[:5, 0] 
-    right_edge = binary[:5, -1]
-
-    # Verifica se ci sono pixel non neri lungo i bordi
-    top_black = np.all(top_edge <= threshold)
-    bottom_black = np.all(bottom_edge <= threshold)
-    left_black = np.all(left_edge <= threshold)
-    right_black = np.all(right_edge <= threshold)
-
-    return top_black or bottom_black or left_black or right_black
 
 def load_light_results(filename:str)->Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
