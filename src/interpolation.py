@@ -69,14 +69,9 @@ def process_pixel_RBF(args):
     
     return x, y, regular_grid
 
-def process_pixel_RBF_cuda(x, y, MLIC_resized, L_poses, directions_uv, directions_grid, regular_grid_dim ):
+def process_pixel_RBF_cuda(x, y, val_train, directions_train, direction_inference, directions_grid, regular_grid_dim ):
     
-    directions_train = torch.tensor(L_poses[:, 0:2], dtype=torch.float32).cuda()
-    val_train = torch.tensor(MLIC_resized[:, y, x], dtype=torch.float32).cuda()
-    
-    model_xy = torchrbf.RBFInterpolator(directions_train, val_train, kernel='linear', smoothing=1, device="cuda")
-    
-    direction_inference = torch.tensor(directions_uv[:, 0:2], dtype=torch.float32).cuda()
+    model_xy = torchrbf.RBFInterpolator(directions_train, val_train[:, y, x], kernel='linear', smoothing=1, device="cuda")
     
     values = model_xy(direction_inference)
     values = np.clip(values.cpu().numpy(), 0, 255)
@@ -137,10 +132,14 @@ def interpolation(coin_number:int, coin_dim:Tuple[int, int], regular_grid_dim:Tu
         
     elif method == "RBF_cuda":
         
+        directions_train = torch.tensor(L_poses[:, 0:2], dtype=torch.float32).cuda()
+        val_train = torch.tensor(MLIC_resized, dtype=torch.float32).cuda()
+        direction_inference = torch.tensor(directions_uv[:, 0:2], dtype=torch.float32).cuda()
+        
         #Execute the RBF interpolation using CUDA
         results = []
         for x,y in tqdm(itertools.product( range(coin_dim[0]), range(coin_dim[1]) ), total=coin_dim[0]*coin_dim[1]):
-            x, y, regular_grid = process_pixel_RBF_cuda(x,y, MLIC_resized, L_poses, directions_uv, directions_grid, regular_grid_dim)
+            x, y, regular_grid = process_pixel_RBF_cuda(x,y, val_train, directions_train, direction_inference, directions_grid, regular_grid_dim)
             results.append((x,y,regular_grid))
         
         # Collect the results

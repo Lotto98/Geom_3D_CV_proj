@@ -94,13 +94,14 @@ if __name__ == "__main__":
     if args.interpolate and not args.compute_light and (args.debug or args.debug_moving or args.debug_static):
         print("WARNING: Debug flags are ignored for interpolation without light computation!")
     
+    print(args)
+    
     if args.compute_light:
-        print(f"Computing light for coin {args.coin} with debug={args.debug}, debug_moving={args.debug_moving}, debug_static={args.debug_static}")
+        print(f"\nComputing light for coin {args.coin} with debug={args.debug}, debug_moving={args.debug_moving}, debug_static={args.debug_static}")
         compute_light(args.coin, args.debug, args.debug_moving, args.debug_static)
     
     if args.interpolate:
-        
-        string_to_print = f"Interpolating light for coin {args.coin} with method={args.method}"
+        string_to_print = f"\nInterpolating light for coin {args.coin} with method={args.method}"
         if args.method=="RBF":
             string_to_print += f", nprocesses={args.nprocesses}"
         print(string_to_print)
