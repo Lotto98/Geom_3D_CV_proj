@@ -81,3 +81,33 @@ python analysis.py --coin 1 --compute-light --debug
 ```bash
 python analysis.py --coin 3 --interpolate --coin-dim 256 256 --regular-grid-dim 50 50 --method RBF_cuda
 ```
+
+### Usage `relighting.py`
+
+This script relight a coin using the data from a specified interpolation method.
+
+```bash
+usage: relighting.py [-h] --coin COIN --method {RBF,PTM,RBF_cuda} 
+                            --coin-dim COIN_DIM COIN_DIM 
+                            --regular-grid-dim REGULAR_GRID_DIM REGULAR_GRID_DIM
+```
+
+#### Options
+
+| Option                                                 | Description                                                            |
+|--------------------------------------------------------|------------------------------------------------------------------------|
+| `-h, --help`                                           | Show this help message and exit.                                       |
+| `--coin COIN`                                          | Coin number: 1, 2, 3, 4.                                               |
+| `--method {RBF,PTM,RBF_cuda}`                          | Method of interpolation to visualize.                                  |
+| `--coin-dim COIN_DIM COIN_DIM`                         | Coin dimensions.                                                       |
+| `--regular-grid-dim REGULAR_GRID_DIM REGULAR_GRID_DIM` | Regular grid dimensions.                                               |
+
+#### Example Usage
+
+Relight coin 1 with method `RBF_cuda`:
+
+```bash
+python3 relighting.py --coin 1 --method RBF_cuda --coin-dim 512 512 --regular-grid-dim 100 100 
+```
+
+### Usage `interpolation_visualizer.py`
