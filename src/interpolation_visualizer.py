@@ -151,12 +151,23 @@ def plot_pixel(x:int, y:int, MLIC:np.ndarray, L_poses:np.ndarray, regular_grids:
     cv.imshow("plot", img)
 
 def interpolation_visualizer(coin:int, methods:List[str], coin_dim_input:Tuple[int, int], regular_grid_dim_input:Tuple[int, int]):
-    
+    """
+    Visualize the interpolation of the light intensities for a given coin.
+
+    Args:
+        coin (int): coin number.
+        methods (List[str]): list of interpolation methods.
+        coin_dim_input (Tuple[int, int]): coin dimensions.
+        regular_grid_dim_input (Tuple[int, int]): regular grid dimensions.
+
+    Raises:
+        FileNotFoundError: if the file with the interpolated data is not found.
+    """
     filename = f"coin{coin}"
     MLIC, L_poses, U_hat, V_hat = load_light_results(filename)
     
+    # Load the regular grids
     filename = filename+f"_{coin_dim_input}_{regular_grid_dim_input}"
-    
     regular_grids_list = []
     coin_dims = []
     
@@ -176,21 +187,26 @@ def interpolation_visualizer(coin:int, methods:List[str], coin_dim_input:Tuple[i
     assert np.all([coin_dim == coin_dims[0] for coin_dim in coin_dims]), \
         "All interpolated coins must have the same dimensions"
     
+    # Resize the images to the desired dimensions
     MLIC_resized = np.array([cv.resize(coin, coin_dim) for coin in MLIC])
     
+    # Compute the nearest light position to the center of the image
     distances = np.linalg.norm(L_poses[:,:2] - np.zeros( (1,1) ) , axis=1)
     
+    # Prepare the pixel selector: the image to display the pixel position on
     pixel_selector = np.concatenate([  np.expand_dims(MLIC_resized[np.argmin(distances),:,:], axis=2),
                                 np.expand_dims(U_hat, axis=2),
                                 np.expand_dims(V_hat, axis=2) ], axis=2)
     pixel_selector = cv.cvtColor(pixel_selector.astype(np.uint8), cv.COLOR_YUV2BGR)
     
+    # Create a window to select the pixel position
     cv.namedWindow("Pixel selector")
-    callback_with_extra = partial(mouse_callback, pixel_selector=pixel_selector.copy())
+    callback_with_extra = partial(mouse_callback, pixel_selector=pixel_selector)
     cv.setMouseCallback("Pixel selector", callback_with_extra)
     
     plot(x_inp, y_inp, pixel_selector.copy())
     
+    # Display the pixel interpolations
     while True:
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
