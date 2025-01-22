@@ -207,6 +207,12 @@ def load_camera_parameters(name:str) -> Tuple[np.ndarray, np.ndarray, np.ndarray
     rvecs = data['rvecs']
     tvecs = data['tvecs']
     
+    print("\nCamera parameters loaded.\n")
+    print("Intrinsic camera matrix: ")
+    print(mtx,"\n")
+    print("Distortion coefficients: ")
+    print(dist,"\n\n")
+    
     return mtx, dist, rvecs, tvecs
 
 def main_calibration(name:str, chessboard_dim:Tuple[int,int], num_frames:int, to_show:bool, to_calculate_error:bool):
