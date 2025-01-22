@@ -7,6 +7,7 @@ from compute_light import load_light_results
 
 import cv2 as cv
 import io
+import gc
 
 # Global variables for the light source selection
 x_inp:int = 50
@@ -14,8 +15,7 @@ y_inp:int = 50
 drawing:bool = False
 
 image_size:int = 512
-
-def plot(x:int, y:int, Y:np.ndarray, U_hat:np.ndarray, V_hat:np.ndarray):
+def plot(x:int, y:int, pixel_selector:np.ndarray):
     """
     Plot the light source on the screen. The light source is represented by a white circle on a black background.
 
@@ -26,20 +26,14 @@ def plot(x:int, y:int, Y:np.ndarray, U_hat:np.ndarray, V_hat:np.ndarray):
     
     global image_size
     
-    img = np.concatenate([  np.expand_dims(Y, axis=2),
-                            np.expand_dims(U_hat, axis=2),
-                            np.expand_dims(V_hat, axis=2) ], axis=2)
-    
-    img = cv.cvtColor(img.astype(np.uint8), cv.COLOR_YUV2BGR)
-    
     x = int(x)
     y = int(y)
     
-    img = cv.circle(img, (x, y), 5, (255, 255, 255), -1)
+    img = cv.circle(pixel_selector.copy(), (x, y), 5, (255, 255, 255), -1)
     
     cv.imshow("Pixel selector", img)
     
-def set_light(x:int, y:int, L:np.ndarray, U_hat:np.ndarray, V_hat:np.ndarray):
+def set_light(x:int, y:int, pixel_selector:np.ndarray):
     """
     Set the given light source position and plot it on the screen.
 
@@ -52,13 +46,13 @@ def set_light(x:int, y:int, L:np.ndarray, U_hat:np.ndarray, V_hat:np.ndarray):
     
     global x_inp, y_inp, image_size
     
-    plot(x, y, L, U_hat, V_hat)
+    plot(x, y, pixel_selector)
     
     x_inp = x
     y_inp = y
 
 # mouse callback function
-def mouse_callback(event:int,x:int,y:int,flags,param, L, U_hat, V_hat):
+def mouse_callback(event:int,x:int,y:int,flags,param, pixel_selector:np.ndarray):
     """
     Callback function to handle mouse events. 
     It sets the light source position when the left mouse button is clicked.
@@ -72,27 +66,27 @@ def mouse_callback(event:int,x:int,y:int,flags,param, L, U_hat, V_hat):
         
     if event == cv.EVENT_LBUTTONDOWN:
         drawing = True
-        set_light(x, y, L, U_hat, V_hat)
+        set_light(x, y, pixel_selector)
     elif event == cv.EVENT_MOUSEMOVE:
         if drawing == True:
-            set_light(x, y, L, U_hat, V_hat)
+            set_light(x, y, pixel_selector)
     elif event == cv.EVENT_LBUTTONUP:
         drawing = False
-        set_light(x, y, L, U_hat, V_hat)
+        set_light(x, y, pixel_selector)
+
+def get_img_from_fig(fig, dpi=100):
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=dpi)
+    buf.seek(0)
+    img_arr = np.frombuffer(buf.getvalue(), dtype=np.uint8)
+    buf.close()
+    del buf
+    gc.collect()
+    img = cv.imdecode(img_arr, 1)
+
+    return img
 
 def plot_pixel(x, y, MLIC, L_poses, regular_grids=[], methods=[]):
-    
-    # define a function which returns an image as numpy array from figure
-    def get_img_from_fig(fig, dpi=180):
-        
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=dpi)
-        buf.seek(0)
-        img_arr = np.frombuffer(buf.getvalue(), dtype=np.uint8)
-        buf.close()
-        img = cv.imdecode(img_arr, 1)
-
-        return img
     
     assert len(regular_grids) == len(methods), "Number of regular grids and methods must be the same"
     
@@ -119,6 +113,7 @@ def plot_pixel(x, y, MLIC, L_poses, regular_grids=[], methods=[]):
     plt.colorbar(mappable=scatter, cax=cbar_ax)
     
     img = get_img_from_fig(fig)
+    plt.close(fig)
     img=cv.resize(img, (800, 400))
     cv.imshow("plot", img)
 
@@ -159,11 +154,16 @@ if __name__ == "__main__":
     
     distances = np.linalg.norm(L_poses[:,:2] - np.zeros( (1,1) ) , axis=1)
     
+    pixel_selector = np.concatenate([  np.expand_dims(MLIC_resized[np.argmin(distances),:,:], axis=2),
+                                np.expand_dims(U_hat, axis=2),
+                                np.expand_dims(V_hat, axis=2) ], axis=2)
+    pixel_selector = cv.cvtColor(pixel_selector.astype(np.uint8), cv.COLOR_YUV2BGR)
+    
     cv.namedWindow("Pixel selector")
-    callback_with_extra = partial(mouse_callback, L=MLIC_resized[np.argmin(distances),:,:], U_hat=U_hat, V_hat=V_hat)
+    callback_with_extra = partial(mouse_callback, pixel_selector=pixel_selector.copy())
     cv.setMouseCallback("Pixel selector", callback_with_extra)
     
-    plot(x_inp, y_inp, MLIC_resized[np.argmin(distances),:,:], U_hat, V_hat)
+    plot(x_inp, y_inp, pixel_selector.copy())
     
     while True:
         if cv.waitKey(1) & 0xFF == ord('q'):
