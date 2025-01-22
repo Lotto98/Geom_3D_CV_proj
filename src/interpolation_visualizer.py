@@ -214,8 +214,8 @@ def interpolation_visualizer(coin:int, methods:List[str], coin_dim_input:Tuple[i
         plot_pixel(x_inp, y_inp, MLIC_resized, L_poses, regular_grids_list, methods)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Interpolation visualizer")
-    parser.add_argument("--coin", type=int, required=True, help="Coin number: 1, 2, 3, 4")
+    parser = argparse.ArgumentParser(description="Interpolation visualizer for a given coin using the specified methods")
+    parser.add_argument("--coin", type=int, required=True, help="Coin number: 1, 2, 3, 4", choices=[1, 2, 3, 4])
     parser.add_argument("--methods", help="Method of interpolation to visualize", nargs='+', 
                         type=str, required=True, choices=["RBF", "PTM", "RBF_cuda"])
     

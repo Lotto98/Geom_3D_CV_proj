@@ -147,7 +147,7 @@ def relighting(coin_number:int, method:str, coin_dim_input:tuple, regular_grid_d
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Relighting of a coin using the data from a specified interpolation method")
-    parser.add_argument("--coin", type=int, required=True, help="Coin number: 1, 2, 3, 4")
+    parser.add_argument("--coin", type=int, required=True, help="Coin number: 1, 2, 3, 4", choices=[1, 2, 3, 4])
     parser.add_argument("--method", type=str, required=True, 
                         help="Method of interpolation to visualize",
                         choices=["RBF", "PTM", "RBF_cuda"])

@@ -1,5 +1,7 @@
 # Geom_3D_CV_proj
 
+Project for the course Geometrical and 3D Computer Vision 2024/2025. Details in `Assignment.pdf`.
+
 ## Installation
 
 To set up the conda environment for this project, follow these steps:
@@ -20,18 +22,25 @@ To set up the conda environment for this project, follow these steps:
     conda activate geom_3D_CV
     ```
 
-## Usage
+### Download data
 
-### Usage Instructions for `calibrator.py`
+To download the data and create the folder:
+
+```bash
+sh download_data.sh
+```
+
+## Usage Instructions for `calibrator.py`
 
 This script is used to calibrate camera using chessboard images.
 
 ```bash
-usage: calibration.py [-h] [--name NAME] [--chessboard_dim CHESSBOARD_DIM] [--num_frames NUM_FRAMES] 
+usage: calibration.py [-h] [--name NAME] [--chessboard_dim CHESSBOARD_DIM]
+                        [--num_frames NUM_FRAMES] 
                         [--debug | --no-debug] [--error | --no-error]
 ```
 
-#### Options
+### Options
 
 | Option                            | Description                                                 |
 |-----------------------------------|-------------------------------------------------------------|
@@ -43,7 +52,7 @@ usage: calibration.py [-h] [--name NAME] [--chessboard_dim CHESSBOARD_DIM] [--nu
 | `--error, --no-error`             | Calculate the error.                                        |
 
 
-### Usage Instructions for `analysis.py`
+## Usage Instructions for `analysis.py`
 
 This script is used to compute the light for a given coin and interpolate it using different methods.
 
@@ -54,7 +63,7 @@ usage: analysis.py [-h] --coin {1,2,3,4} [--compute-light] [--interpolate]
                     [--coin-dim WIDTH HEIGHT] [--regular-grid-dim ROWS COLS]
 ```
 
-#### Options
+### Options
 
 | Option                        | Description                                                                                        |
 |-------------------------------|----------------------------------------------------------------------------------------------------|
@@ -70,39 +79,39 @@ usage: analysis.py [-h] --coin {1,2,3,4} [--compute-light] [--interpolate]
 | `--coin-dim WIDTH HEIGHT`     | Dimensions of the coin (default: `[512, 512]`). For `--interpolate` only.                          |
 | `--regular-grid-dim ROWS COLS`| Dimensions of the regular grid (default: `[100, 100]`). For `--interpolate` only.                  |
 
-#### Example Usage
+### Example Usage
 
-##### Basic Example
+#### Basic Example
 ```bash
 python analysis.py --coin 1 --compute-light --debug
 ```
 
-##### Interpolation with Custom Coin and Grid Dimensions
+#### Interpolation with Custom Coin and Grid Dimensions
 ```bash
 python analysis.py --coin 3 --interpolate --coin-dim 256 256 --regular-grid-dim 50 50 --method RBF_cuda
 ```
 
-### Usage `relighting.py`
+## Usage `relighting.py`
 
 This script relight a coin using the data from a specified interpolation method.
 
 ```bash
-usage: relighting.py [-h] --coin COIN --method {RBF,PTM,RBF_cuda} 
+usage: relighting.py [-h] --coin {1,2,3,4} --method {RBF,PTM,RBF_cuda} 
                             --coin-dim COIN_DIM COIN_DIM 
                             --regular-grid-dim REGULAR_GRID_DIM REGULAR_GRID_DIM
 ```
 
-#### Options
+### Options
 
 | Option                                                 | Description                                                            |
 |--------------------------------------------------------|------------------------------------------------------------------------|
 | `-h, --help`                                           | Show this help message and exit.                                       |
-| `--coin COIN`                                          | Coin number: 1, 2, 3, 4.                                               |
+| `--coin {1,2,3,4}`                                          | Coin number: 1, 2, 3, 4.                                               |
 | `--method {RBF,PTM,RBF_cuda}`                          | Method of interpolation to visualize.                                  |
 | `--coin-dim COIN_DIM COIN_DIM`                         | Coin dimensions.                                                       |
 | `--regular-grid-dim REGULAR_GRID_DIM REGULAR_GRID_DIM` | Regular grid dimensions.                                               |
 
-#### Example Usage
+### Example Usage
 
 Relight coin 1 with method `RBF_cuda`:
 
@@ -110,4 +119,28 @@ Relight coin 1 with method `RBF_cuda`:
 python3 relighting.py --coin 1 --method RBF_cuda --coin-dim 512 512 --regular-grid-dim 100 100 
 ```
 
-### Usage `interpolation_visualizer.py`
+## Usage `interpolation_visualizer.py`
+
+Interpolation visualizer for a given coin using the specified methods
+
+```bash
+usage: interpolation_visualizer.py [-h] --coin {1,2,3,4} --methods {RBF,PTM,RBF_cuda} [{RBF,PTM,RBF_cuda} ...] 
+                                        --coin-dim COIN_DIM COIN_DIM 
+                                        --regular-grid-dim REGULAR_GRID_DIM REGULAR_GRID_DIM
+```
+
+### Options
+
+| Option                                                       | Description                                |
+|--------------------------------------------------------------|--------------------------------------------|
+| `-h, --help`                                                 | Show this help message and exit.           |
+| `--coin {1,2,3,4}`                                           | Coin number: 1, 2, 3 or 4.                 |
+| `--methods {RBF,PTM,RBF_cuda} [{RBF,PTM,RBF_cuda} ...]`      | Method(s) of interpolation to visualize.   |
+| `--coin-dim COIN_DIM COIN_DIM`                               | Coin dimensions.                           |
+| `--regular-grid-dim REGULAR_GRID_DIM REGULAR_GRID_DIM`       | Regular grid dimensions.                   |
+
+### Example Usage
+
+```bash
+python3 src/interpolation_visualizer.py --coin 1 --method RBF_cuda PTM --coin-dim 512 512 --regular-grid-dim 100 100 
+```

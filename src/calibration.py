@@ -49,6 +49,8 @@ def get_frames_from_video(video_path:str, num_frames_to_select:int=20) -> List[n
 def get_points(selected_frames:List[np.ndarray], chessboard_dim:Tuple[int,int], to_show:bool) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     """
     OpenCV script to get the object points and image points from the selected frames.
+    
+    https://docs.opencv.org/master/dc/dbb/tutorial_py_calibration.html
 
     Args:
         selected_frames (List[np.ndarray]): List of selected frames.
