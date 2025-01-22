@@ -7,20 +7,23 @@ Project for the course Geometrical and 3D Computer Vision 2024/2025. Details in 
 To set up the conda environment for this project, follow these steps:
 
 1. **Clone the repository:**
-    ```bash
-    git clone https://github.com/yourusername/Geom_3D_CV_proj.git
-    cd Geom_3D_CV_proj
-    ```
+
+```bash
+git clone https://github.com/yourusername/Geom_3D_CV_proj.git
+cd Geom_3D_CV_proj
+```
 
 2. **Create the conda environment:**
-    ```bash
-    conda env create -f environment.yml
-    ```
+
+```bash
+conda env create -f environment.yml
+```
 
 3. **Activate the conda environment:**
-    ```bash
-    conda activate geom_3D_CV
-    ```
+
+```bash
+conda activate geom_3D_CV
+```
 
 ### Download data
 
