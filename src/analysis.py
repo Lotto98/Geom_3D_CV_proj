@@ -1,6 +1,7 @@
 from compute_light import compute_light
 import os
 import argparse
+import gc
 
 if __name__ == "__main__":
     
@@ -105,6 +106,7 @@ if __name__ == "__main__":
     if args.compute_light:
         print(f"\nComputing light for coin {args.coin} with debug={args.debug}, debug_moving={args.debug_moving}, debug_static={args.debug_static}")
         compute_light(args.coin, args.debug, args.debug_moving, args.debug_static)
+        gc.collect()
     
     if args.interpolate:
         string_to_print = f"\nInterpolating light for coin {args.coin} with method={args.method}"
