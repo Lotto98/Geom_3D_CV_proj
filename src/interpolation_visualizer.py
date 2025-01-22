@@ -1,7 +1,10 @@
 from functools import partial
+import os
+from typing import List, Tuple
 from matplotlib import pyplot as plt
 import argparse
 import numpy as np
+from tqdm import tqdm
 
 from compute_light import load_light_results
 
@@ -17,11 +20,12 @@ drawing:bool = False
 image_size:int = 512
 def plot(x:int, y:int, pixel_selector:np.ndarray):
     """
-    Plot the light source on the screen. The light source is represented by a white circle on a black background.
+    Plot the pixel position on the screen.
 
     Args:
         x (int): x coordinate in input in [0, image_size].
         y (int): y coordinate in input in [0, image_size].
+        pixel_selector (np.ndarray): image to plot the pixel on.
     """
     
     global image_size
@@ -29,19 +33,19 @@ def plot(x:int, y:int, pixel_selector:np.ndarray):
     x = int(x)
     y = int(y)
     
-    img = cv.circle(pixel_selector.copy(), (x, y), 5, (255, 255, 255), -1)
+    img = cv.circle(pixel_selector.copy(), (x, y), 5, (0, 0, 255), -1)
     
     cv.imshow("Pixel selector", img)
     
-def set_light(x:int, y:int, pixel_selector:np.ndarray):
+def set_pixel_position(x:int, y:int, pixel_selector:np.ndarray):
     """
-    Set the given light source position and plot it on the screen.
+    Set the pixel position and plot it on the screen.
 
-    It also updates the global variables x_inp and y_inp in the range [0, grid_dim].
-
+    It also updates the global variables x_inp and y_inp.
     Args:
         x (int): input x coordinate in [0, image_size].
         y (int): input y coordinate in [0, image_size].
+        pixel_selector (np.ndarray): image to plot the pixel on.
     """
     
     global x_inp, y_inp, image_size
@@ -55,7 +59,7 @@ def set_light(x:int, y:int, pixel_selector:np.ndarray):
 def mouse_callback(event:int,x:int,y:int,flags,param, pixel_selector:np.ndarray):
     """
     Callback function to handle mouse events. 
-    It sets the light source position when the left mouse button is clicked.
+    It sets the pixel position when the left mouse button is clicked and gragged
 
     Args:
         event (int): event type.
@@ -66,15 +70,25 @@ def mouse_callback(event:int,x:int,y:int,flags,param, pixel_selector:np.ndarray)
         
     if event == cv.EVENT_LBUTTONDOWN:
         drawing = True
-        set_light(x, y, pixel_selector)
+        set_pixel_position(x, y, pixel_selector)
     elif event == cv.EVENT_MOUSEMOVE:
         if drawing == True:
-            set_light(x, y, pixel_selector)
+            set_pixel_position(x, y, pixel_selector)
     elif event == cv.EVENT_LBUTTONUP:
         drawing = False
-        set_light(x, y, pixel_selector)
+        set_pixel_position(x, y, pixel_selector)
 
-def get_img_from_fig(fig, dpi=100):
+def get_img_from_fig(fig:plt.figure, dpi=70)->np.ndarray:
+    """
+    Get a numpy array from a matplotlib figure.
+
+    Args:
+        fig (plt.figure): matplotlib figure.
+        dpi (int, optional): Number of dots per inch. Defaults to 100.
+
+    Returns:
+        np.ndarray: image as a numpy array.
+    """
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=dpi)
     buf.seek(0)
@@ -86,15 +100,29 @@ def get_img_from_fig(fig, dpi=100):
 
     return img
 
-def plot_pixel(x, y, MLIC, L_poses, regular_grids=[], methods=[]):
+def plot_pixel(x:int, y:int, MLIC:np.ndarray, L_poses:np.ndarray, regular_grids:List[np.ndarray] = [], methods:List[str] = []):
+    """
+    Plot the observed light intensities and the interpolated light intensities.
+
+    Args:
+        x (int): x-coordinate of the pixel
+        y (int): y-coordinate of the pixel
+        MLIC (np.ndarray): observed light intensities
+        L_poses (np.ndarray): observed light positions
+        regular_grids (List[np.ndarray], optional): interpolated light intensities. Defaults to [].
+        methods (List[str], optional): interpolation methods. Defaults to [].
+    """
     
+    # Check if the number of regular grids and methods is the same
     assert len(regular_grids) == len(methods), "Number of regular grids and methods must be the same"
     
+    # Create the plot
     fig, ax = plt.subplots(1, 1+len(regular_grids), figsize=(5+5*len(regular_grids), 5))
     
     if not isinstance(ax, np.ndarray):
         ax = np.array([ax])
     
+    # Plot the observed light intensities
     ax[0].set_ylim(-1, 1)
     ax[0].set_xlim(-1, 1)
     scatter = ax[0].scatter(L_poses[:, 0], L_poses[:, 1], c=MLIC[:, y, x], cmap='viridis', s=2, vmax=255, vmin=0,)
@@ -102,49 +130,47 @@ def plot_pixel(x, y, MLIC, L_poses, regular_grids=[], methods=[]):
     ax[0].set_xlabel("U")
     ax[0].set_ylabel("V")
 
+    # Plot the regular grids (interpolated light intensities)
     for i, regular_grid in enumerate(regular_grids):
         image = ax[i+1].matshow(regular_grid[y, x], cmap='viridis', vmax=255, vmin=0,)
         ax[i+1].set_title(f"Interpolation {methods[i]}")
         ax[i+1].axis('off')
         ax[i+1].invert_yaxis()
 
+    # Add a colorbar
     fig.subplots_adjust(right=0.85)
     cbar_ax = fig.add_axes([0.87, 0.15, 0.02, 0.7])
     plt.colorbar(mappable=scatter, cax=cbar_ax)
     
+    # Convert the plot to an image
     img = get_img_from_fig(fig)
     plt.close(fig)
-    img=cv.resize(img, (800, 400))
+    
+    # Resize the image and show it
+    img=cv.resize(img, (400+400*len(regular_grids), 400))
     cv.imshow("plot", img)
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Interpolation visualizer")
-    parser.add_argument("--coin", type=int, required=True, help="Coin number: 1, 2, 3, 4")
-    parser.add_argument("--methods", help="Method of interpolation to visualize", nargs='+', 
-                        type=str, required=True, choices=["RBF", "PTM", "RBF_cuda"])
+def interpolation_visualizer(coin:int, methods:List[str], coin_dim_input:Tuple[int, int], regular_grid_dim_input:Tuple[int, int]):
     
-    parser.add_argument("--coin-dim", type=int, nargs=2, required=True, help="Coin dimensions")
-    parser.add_argument("--regular-grid-dim", type=int, nargs=2, required=True, help="Regular grid dimensions")
-    args=parser.parse_args()
-    
-    coin_dim_input = tuple(args.coin_dim)
-    regular_grid_dim_input = tuple(args.regular_grid_dim)
-    
-    filename = f"coin{args.coin}"
+    filename = f"coin{coin}"
     MLIC, L_poses, U_hat, V_hat = load_light_results(filename)
     
     filename = filename+f"_{coin_dim_input}_{regular_grid_dim_input}"
     
-    to_plot = {}
+    regular_grids_list = []
     coin_dims = []
     
-    for m in args.methods:
+    for m in tqdm(methods, desc="Loading regular grids"):
+        
+        if not os.path.exists(f"./results/{m}/{filename}.npz"):
+            raise FileNotFoundError(f"File './results/{m}/{filename}.npz' not found: did you run the interpolation using {m} with coin{coin}, coin dimensions {coin_dim_input} and regular grid dimensions {regular_grid_dim_input}?")
+        
         loaded = np.load(f"./results/{m}/{filename}.npz", allow_pickle=True)
         regular_grids = loaded["regular_grids"]
         regular_grid_dim = loaded["regular_grid_dim"]
         coin_dim = loaded["coin_dim"]
         
-        to_plot[m] = (regular_grids)
+        regular_grids_list.append(regular_grids)
         coin_dims.append(coin_dim)
     
     assert np.all([coin_dim == coin_dims[0] for coin_dim in coin_dims]), \
@@ -169,4 +195,21 @@ if __name__ == "__main__":
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
         
-        plot_pixel(x_inp, y_inp, MLIC_resized, L_poses, [r for r in to_plot.values()], [m for m in to_plot.keys()])
+        plot_pixel(x_inp, y_inp, MLIC_resized, L_poses, regular_grids_list, methods)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Interpolation visualizer")
+    parser.add_argument("--coin", type=int, required=True, help="Coin number: 1, 2, 3, 4")
+    parser.add_argument("--methods", help="Method of interpolation to visualize", nargs='+', 
+                        type=str, required=True, choices=["RBF", "PTM", "RBF_cuda"])
+    
+    parser.add_argument("--coin-dim", type=int, nargs=2, required=True, help="Coin dimensions")
+    parser.add_argument("--regular-grid-dim", type=int, nargs=2, required=True, help="Regular grid dimensions")
+    args=parser.parse_args()
+    
+    coin = args.coin
+    methods = args.methods
+    coin_dim_input = tuple(args.coin_dim)
+    regular_grid_dim_input = tuple(args.regular_grid_dim)
+    
+    interpolation_visualizer(coin, methods, coin_dim_input, regular_grid_dim_input)

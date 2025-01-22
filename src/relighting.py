@@ -42,10 +42,13 @@ def set_light(x:int, y:int):
     
     global x_inp, y_inp, image_size
     
+    # Plot the light source before conversion
     plot(x, y)
     
+    # Move origin to bottom left corner
     y = image_size - y - 1
     
+    # Convert in grid space
     x_inp = ( x / image_size)*100
     y_inp = ( y / image_size)*100
 
@@ -61,7 +64,8 @@ def mouse_callback(event:int,x:int,y:int,flags,param):
         y (int): y coordinate.
     """
     global drawing
-        
+    
+    # Implement dragging
     if event == cv.EVENT_LBUTTONDOWN:
         drawing = True
         set_light(x, y)
@@ -86,16 +90,16 @@ def relighting(coin_number:int, method:str, coin_dim_input:tuple, regular_grid_d
         FileNotFoundError: if the file with the interpolated data is not found.
     """
     
+    # Check existence of regular grid
     coin_path = f"./results/{method}/coin{coin_number}_{coin_dim_input}_{regular_grid_dim_input}.npz"
-    
     if not os.path.exists(coin_path):
         raise FileNotFoundError(f"File '{coin_path}' not found: did you run the interpolation using {method} with coin{coin_number}, coin dimensions {coin_dim_input} and regular grid dimensions {regular_grid_dim_input}?")
     
+    # Load the regular grid
     loaded = np.load(coin_path, allow_pickle=True)
     regular_grids = loaded["regular_grids"]
     regular_grid_dim = loaded["regular_grid_dim"]
     coin_dim = loaded["coin_dim"]
-    
     print("Regular grid loaded")
     
     # Check if the dimensions match the loaded data
@@ -127,7 +131,7 @@ def relighting(coin_number:int, method:str, coin_dim_input:tuple, regular_grid_d
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
         
-        # Find the nearest point in the regular grid
+        # Find the nearest point in the regular grid: y_inp and x_inp may be fractional
         nearest_point = find_nearest_point(directions_grid, np.array([y_inp, x_inp]))
         y_grid, x_grid, = nearest_point
         
@@ -137,6 +141,7 @@ def relighting(coin_number:int, method:str, coin_dim_input:tuple, regular_grid_d
                                 np.expand_dims(U_hat, axis=2), 
                                 np.expand_dims(V_hat, axis=2)), axis=2)
         
+        # Convert to BGR for visualization
         coin = cv.cvtColor(coin, cv.COLOR_YUV2BGR)
         cv.imshow("Coin", cv.resize(coin, (512,512)))
 
