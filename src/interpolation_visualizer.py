@@ -189,6 +189,8 @@ def interpolation_visualizer(coin:int, methods:List[str], coin_dim_input:Tuple[i
     
     # Resize the images to the desired dimensions
     MLIC_resized = np.array([cv.resize(coin, coin_dim) for coin in MLIC])
+    U_hat = cv.resize(U_hat, coin_dim_input)
+    V_hat = cv.resize(V_hat, coin_dim_input)
     
     # Compute the nearest light position to the center of the image
     distances = np.linalg.norm(L_poses[:,:2] - np.zeros( (1,1) ) , axis=1)

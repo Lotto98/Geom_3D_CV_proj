@@ -30,9 +30,6 @@ def compute_ptm_coefficients_2d(MLIC:np.ndarray, light_poses:np.ndarray) -> np.n
     u, v = light_poses[:, 0], light_poses[:, 1]
     L = np.stack([ u**2, v**2, u*v, u, v, np.ones_like(u) ], axis=1)  # Shape: (n_images, 6)
     
-    # Normalize the design matrix
-    #L /= np.linalg.norm(L, axis=1, keepdims=True)
-    
     # Compute coefficients for each pixel
     L_pseudo_inv = np.linalg.pinv(L)  # Shape: (6, n_images)
     coeffs = L_pseudo_inv @ intensities  # Shape: (6, H*W)
