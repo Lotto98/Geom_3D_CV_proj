@@ -9,7 +9,7 @@ To set up the conda environment for this project, follow these steps:
 1. **Clone the repository:**
 
     ```bash
-    git clone [https://github.com/yourusername/Geom_3D_CV_proj.git](https://github.com/Lotto98/Geom_3D_CV_proj.git)
+    git clone https://github.com/Lotto98/Geom_3D_CV_proj.git
     cd Geom_3D_CV_proj
     ```
 
