@@ -33,7 +33,7 @@ To download the data and create the folder:
 sh download_data.sh
 ```
 
-## Usage Instructions for `calibrator.py`
+## Usage Instructions for `calibration.py`
 
 This script is used to calibrate camera using chessboard images.
 
@@ -49,8 +49,8 @@ usage: calibration.py [-h] [--name NAME] [--chessboard_dim CHESSBOARD_DIM]
 |-----------------------------------|-------------------------------------------------------------|
 | `-h, --help`                      | Show this help message and exit.                            |
 | `--name NAME`                     | Name of the camera setup (moving_light/static).             |
-| `--chessboard_dim CHESSBOARD_DIM` | Chessboard dimensions.                                      |
-| `--num_frames NUM_FRAMES`         | Number of frames to select from the video.                  |
+| `--chessboard_dim CHESSBOARD_DIM` | Chessboard dimensions. Default: (9,6).                      |
+| `--num_frames NUM_FRAMES`         | Number of frames to select from the video. Default: 20.     |
 | `--debug, --no-debug`             | Show the chessboard corners and projected corners.          |
 | `--error, --no-error`             | Calculate the error.                                        |
 
@@ -86,12 +86,12 @@ usage: analysis.py [-h] --coin {1,2,3,4} [--compute-light] [--interpolate]
 
 #### Basic Example
 ```bash
-python analysis.py --coin 1 --compute-light --debug
+python3 src/analysis.py --coin 1 --compute-light --debug
 ```
 
 #### Interpolation with Custom Coin and Grid Dimensions
 ```bash
-python analysis.py --coin 3 --interpolate --coin-dim 256 256 --regular-grid-dim 50 50 --method RBF_cuda
+python3 src/analysis.py --coin 3 --interpolate --coin-dim 256 256 --regular-grid-dim 100 100 --method PTM
 ```
 
 ## Usage `relighting.py`
@@ -119,7 +119,7 @@ usage: relighting.py [-h] --coin {1,2,3,4} --method {RBF,PTM,RBF_cuda}
 Relight coin 1 with method `RBF_cuda`:
 
 ```bash
-python3 relighting.py --coin 1 --method RBF_cuda --coin-dim 512 512 --regular-grid-dim 100 100 
+python3 src/relighting.py --coin 1 --method RBF_cuda --coin-dim 512 512 --regular-grid-dim 100 100 
 ```
 
 ## Usage `interpolation_visualizer.py`

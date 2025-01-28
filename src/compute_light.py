@@ -103,6 +103,7 @@ def align_videos(video1_path:str, video2_path:str, audio_sr:int=10000)->None:
         
         return video
     
+    #0) Check if the videos exists and if they are already aligned
     if not os.path.exists(video1_path):
         raise FileNotFoundError(f"File not found: {video1_path}")
     if not os.path.exists(video2_path):
@@ -116,10 +117,13 @@ def align_videos(video1_path:str, video2_path:str, audio_sr:int=10000)->None:
     audio1, sr1 = extract_audio_from_video(video1_path)
     audio2, sr2 = extract_audio_from_video(video2_path)
 
+    # Resample the audio tracks to the same sample rate for comparison
     audio1 = librosa.resample(audio1, orig_sr=sr1, target_sr=audio_sr)
     audio2 = librosa.resample(audio2, orig_sr=sr2, target_sr=audio_sr)
     
-    #2) Find time offset and crop videos accordingly
+    #2) Find time offset and crop videos accordingly:
+    # If the offset is positive, video1 should be cropped.
+    # If the offset is negative, video2 should be cropped.
     offset = find_offset(audio1, audio2, audio_sr)
     print(f"Time offset: {offset:.2f} seconds")
     
@@ -156,10 +160,12 @@ def detect_fiducial_marker(image:np.ndarray,
     """
     Detect the fiducial marker in an image:
     1) Threshold the image.
-    2) Find contours.
-    3) Simplify the contours: Ramer-Douglas-Peucker algorithm.
-    4) Validate the contours with a white dot (midpoint).
-    5) Order the points clockwise.
+    2) Morphological operation: "closing".
+    3) Find contours with hierarchy.
+    4) Simplify the contours: Ramer-Douglas-Peucker algorithm.
+    5) Validate the contours with a white dot (midpoint).
+    6) Select the detected marker: only one marker should be detected.
+    7) Order the points of the detected marker clockwise from the nearest point to the midpoint.
 
     Args:
         image (np.ndarray): image to detect the marker.
@@ -173,11 +179,6 @@ def detect_fiducial_marker(image:np.ndarray,
     image_grey = cv.cvtColor(image, cv.COLOR_RGB2GRAY)
 
     # Step 1: Thresholding
-    
-    #if threshold == -1:
-        #_, binary = cv.threshold(image_grey, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU)
-    #else:
-    
     _, binary = cv.threshold(image_grey, threshold, 255, cv.THRESH_BINARY)
 
     # Step 2: Morphological Operations (to remove noise)
@@ -191,18 +192,16 @@ def detect_fiducial_marker(image:np.ndarray,
         # should not happen
         return detect_fiducial_marker(image, threshold=threshold-10, debug=debug, check_aspect_ratio=check_aspect_ratio)
 
-    # Prepare list for detected markers
+    # Step 4: Simplify contour using Ramer-Douglas-Peucker algorithm
     detected_markers = {}
-
     for i, contour in enumerate(contours):
 
-        # Step 4: Simplify contour using Ramer-Douglas-Peucker algorithm
         epsilon = 0.02 * cv.arcLength(contour, True)
         approx = cv.approxPolyDP(contour, epsilon, True)
 
         detected_markers[i]=approx.reshape(-1, 2)
     
-    # Step 6: Validate with white dot (midpoint check)
+    # Step 5: Validate with white dot (midpoint check)
     valid_markers = []
     valid_midpoints = []
     for i, marker in detected_markers.items():
@@ -282,7 +281,7 @@ def find_nearest_point(points:np.ndarray, point:np.ndarray)->np.ndarray:
     
 def plot_fiducial_marker(image:np.ndarray, marker:np.ndarray, midpoint:np.ndarray)->np.ndarray:
     """
-    Plot the fiducial marker on the image.
+    Plot the fiducial marker on the given image.
 
     Args:
         image (np.ndarray): image to plot the marker.
@@ -293,6 +292,7 @@ def plot_fiducial_marker(image:np.ndarray, marker:np.ndarray, midpoint:np.ndarra
         np.ndarray: Image with the plotted marker.
     """
     
+    # Define colors for the corners of the marker (BGR)
     colors = [
         (0, 0, 225),   # Red
         (255, 0, 255), # Magenta
@@ -361,7 +361,7 @@ def order_points_clockwise(points:np.ndarray, midpoint:np.ndarray)->np.ndarray:
 
 def plot_light_source(u:float, v:float, convert:bool=True, image_size:int=200)->np.ndarray:
     """
-    Plot a light source on a black background.
+    Plot a light source on a black background with a unit circle.
 
     Args:
         u (float): x-coordinate of the light source in normalized coordinates (-1 to 1) or pixel coordinates.
@@ -398,7 +398,7 @@ def calculateLightPosition(objectPoints:np.ndarray, imagePoints:np.ndarray,
     Compute the light source position from the object and image points.
 
     Args:
-        objectPoints (np.ndarray): "3D" object points: 4x3 array.
+        objectPoints (np.ndarray): "3D" object points: 4x3 array. Projected 2D points.
         imagePoints (np.ndarray): 2D image points: 4x2 array.
         cameraMatrix (np.ndarray): intrinsic camera matrix.
         dist (np.ndarray): distortion coefficients.
@@ -458,7 +458,13 @@ def calculateLightPosition(objectPoints:np.ndarray, imagePoints:np.ndarray,
 
 def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=False)->None: 
     """
-    Compute the light directions for a given coin number.
+    Compute the light directions for a given coin number. This function will:
+    1) Load the videos.
+    2) Align the videos and save them to file. (if not already aligned)
+    3) Compute the light source for each frame.
+    4) Compute the light intensity coin (MLIC).
+    5) Compute the U and V mean components of the coin.
+    6) Save the results to file.
 
     Args:
         coin_number (int): Number of the coin to compute the light source: 1, 2, 3, or 4.
@@ -532,41 +538,45 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
         marker_moving, midpoint_moving, binary_moving = detect_fiducial_marker(frame_moving, threshold=100,
                                                                                debug=debug_moving)
         
-        #skip the frame if the marker is not detected or if the marker is too far from the previous one
+        #skip the frame if the marker is not detected or if the marker is too far from the previous one:
+        #this ensures that the static marker is always the correct one
         if marker_static is None or (pre_marker_static is not None and np.linalg.norm(pre_marker_static - marker_static) > 80):
-            compute_static = True
             skipped_static += 1
+            # update the progress bar
             bar.update(1)
             bar.desc = f"Processing frames... skipped static: {skipped_static} skipped moving: {skipped_moving}"
             continue
         
-        #save the marker for the next iteration
+        #save the static marker for the next iteration
         pre_marker_static = marker_static.copy()
         
         #skip the frame if the marker is not detected
         if marker_moving is None:
             skipped_moving += 1
+            # update the progress bar
             bar.update(1)
             bar.desc = f"Processing frames... skipped static: {skipped_static} skipped moving: {skipped_moving}"
             continue
         
-        #plot the detected markers
+        #plot the detected markers if debug is enabled
         if debug:
             cv.imshow("Static", plot_fiducial_marker(frame_static.copy(), marker_static, midpoint_static))
             cv.imshow("Moving", plot_fiducial_marker(frame_moving.copy(), marker_moving, midpoint_moving))
         
-        #plot the binary images
+        #plot the binary images if the specific debug is enabled
         if debug_static:
             cv.imshow("Static threshold", binary_static)
         if debug_moving:
             cv.imshow("Moving threshold", binary_moving)
         
-        #"crop" static image using the static marker
+        #"crop" static image using the static marker:
+        #1)warp the static image to a square using the static marker
+        #2)flip the image vertically (around the x-axis) to adjust the orientation of the coin
+        #3)resize it to 512x512 to solve possible errors in the homography computation
         _, _, w_static, h_static = cv.boundingRect(marker_static)
         marker_reference_points_static = np.array([ [0, 0, 1], [0, h_static, 1], 
                                                     [w_static, h_static, 1], [w_static, 0, 1]  ],dtype=np.float32)
         static_homography, _ = cv.findHomography(marker_static.astype(np.float32), marker_reference_points_static)
-        
         coin = cv.warpPerspective(frame_static, static_homography, (w_static, h_static))
         coin = cv.flip(coin, 0)
         coin = cv.resize(coin, (512, 512))
@@ -580,7 +590,7 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
         U_coin.append(coin_yuv[:,:,1])
         V_coin.append(coin_yuv[:,:,2])
         
-        #compute the light source
+        #compute the light source position using the moving marker
         _, _, w, h = cv.boundingRect(marker_moving)
         marker_reference_points = np.array([[0, 0, 1], [0, h, 1], [w, h, 1], [w, 0, 1]  ], dtype=np.float32)
         res = calculateLightPosition(objectPoints=marker_reference_points,
@@ -592,6 +602,7 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
         cv.imshow("Coin", coin)
         cv.imshow("Light source", plot_light_source(res[0], res[1]))
         
+        #allow the user to quit the program by pressing 'q' and update the progress bar
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
         
@@ -603,7 +614,7 @@ def compute_light(coin_number:int, debug=True, debug_moving=False, debug_static=
     cap_moving.release()
     cv.destroyAllWindows()
     
-    #prepare the results to be saved
+    #prepare the results to be saved: convert to numpy arrays and compute the mean of the U and V components
     MLIC = np.array(MLIC)
     L_poses = np.array(L_poses)
     U_hat = np.mean(np.array(U_coin), axis=0)
@@ -629,7 +640,7 @@ def load_light_results(filename:str)->Tuple[np.ndarray, np.ndarray, np.ndarray, 
     Returns:
         Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: MLIC, L_poses, U_hat, V_hat. 
         
-        MLIC is the light intensity coin, L_poses are the light poses, 
+        MLIC is the light intensity coin for each light pose, L_poses are the light poses, 
         U_hat and V_hat are the U and V mean components of the coin.
     """
     

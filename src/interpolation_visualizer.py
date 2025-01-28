@@ -18,7 +18,7 @@ y_inp:int = 50
 drawing:bool = False
 
 image_size:int = 512
-def plot(x:int, y:int, pixel_selector:np.ndarray):
+def plot_pixel_position(x:int, y:int, pixel_selector:np.ndarray):
     """
     Plot the pixel position on the screen.
 
@@ -50,7 +50,7 @@ def set_pixel_position(x:int, y:int, pixel_selector:np.ndarray):
     
     global x_inp, y_inp, image_size
     
-    plot(x, y, pixel_selector)
+    plot_pixel_position(x, y, pixel_selector)
     
     x_inp = x
     y_inp = y
@@ -59,7 +59,7 @@ def set_pixel_position(x:int, y:int, pixel_selector:np.ndarray):
 def mouse_callback(event:int,x:int,y:int,flags,param, pixel_selector:np.ndarray):
     """
     Callback function to handle mouse events. 
-    It sets the pixel position when the left mouse button is clicked and gragged
+    It sets the pixel position when the left mouse button is clicked and dragged.
 
     Args:
         event (int): event type.
@@ -163,6 +163,8 @@ def interpolation_visualizer(coin:int, methods:List[str], coin_dim_input:Tuple[i
     Raises:
         FileNotFoundError: if the file with the interpolated data is not found.
     """
+    
+    # Load the light results
     filename = f"coin{coin}"
     MLIC, L_poses, U_hat, V_hat = load_light_results(filename)
     
@@ -184,15 +186,18 @@ def interpolation_visualizer(coin:int, methods:List[str], coin_dim_input:Tuple[i
         regular_grids_list.append(regular_grids)
         coin_dims.append(coin_dim)
     
-    assert np.all([coin_dim == coin_dims[0] for coin_dim in coin_dims]), \
+    # Check if the dimensions match the loaded data: coin_dim and regular_grid_dim should match the input arguments.
+    assert np.all([coin_dim == coin_dim_input for coin_dim in coin_dims]), \
         "All interpolated coins must have the same dimensions"
+    assert np.all([regular_grid_dim == regular_grid_dim_input for regular_grid_dim in regular_grid_dim]), \
+        "All interpolated coins must have the same regular grid dimensions"
     
     # Resize the images to the desired dimensions
     MLIC_resized = np.array([cv.resize(coin, coin_dim) for coin in MLIC])
     U_hat = cv.resize(U_hat, coin_dim_input)
     V_hat = cv.resize(V_hat, coin_dim_input)
     
-    # Compute the nearest light position to the center of the image
+    # Compute the nearest light position to the center of the image: used to display the initial pixel position
     distances = np.linalg.norm(L_poses[:,:2] - np.zeros( (1,1) ) , axis=1)
     
     # Prepare the pixel selector: the image to display the pixel position on
@@ -206,7 +211,7 @@ def interpolation_visualizer(coin:int, methods:List[str], coin_dim_input:Tuple[i
     callback_with_extra = partial(mouse_callback, pixel_selector=pixel_selector)
     cv.setMouseCallback("Pixel selector", callback_with_extra)
     
-    plot(x_inp, y_inp, pixel_selector.copy())
+    plot_pixel_position(x_inp, y_inp, pixel_selector.copy())
     
     # Display the pixel interpolations
     while True:

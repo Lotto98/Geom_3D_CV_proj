@@ -136,6 +136,9 @@ def calculate_error(frames:List[np.ndarray],
                     chessboard_dim:tuple) -> None:
     """
     Calculate the error of the calibration.
+    
+    Based on the OpenCV tutorial:
+    https://docs.opencv.org/master/dc/dbb/tutorial_py_calibration.html
 
     Args:
         frames (List[np.ndarray]): list of selected frames.
@@ -253,13 +256,13 @@ if __name__ == "__main__":
                         nargs=2, 
                         default=[9, 6], 
                         metavar=("COLS", "ROWS"),  
-                        help='Chessboard dimensions')
-    parser.add_argument('--num_frames', type=int, default=20, help='Number of frames to select from the video')
+                        help='Chessboard dimensions. Default: (9, 6)')
+    parser.add_argument('--num_frames', type=int, default=20, help='Number of frames to select from the video. Default: 20')
     
     parser.add_argument('--debug', type=bool, default=False, action=argparse.BooleanOptionalAction, 
                         help='Show the chessboard corners and projected corners')
     parser.add_argument('--error', type=bool, default=False, action=argparse.BooleanOptionalAction, 
-                        help='Calculate the error')
+                        help='Calculate the error of the calibration')
     args = parser.parse_args()
     
     name = args.name

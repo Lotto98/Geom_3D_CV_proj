@@ -10,7 +10,6 @@ if __name__ == "__main__":
     This script is used to compute the light for a given coin and interpolate it using different methods.
     """
     
-    
     parser = argparse.ArgumentParser(description="Analysis script")
     
     parser.add_argument(
@@ -114,7 +113,10 @@ if __name__ == "__main__":
             string_to_print += f", nprocesses={args.nprocesses}"
         print(string_to_print)
         
-        # Set environment variables for scipy RBF method with multiple processes 
+        # Set environment variables for scipy RBF method with multiple processes:
+        # RBF from scipy is better parallelizable at pixels level instead of sub-pixels level
+        # thus I set the number of threads to 1 for the scipy RBF method but I parallelize 
+        # the process at pixels level manually.
         if args.method == "RBF" and (args.nprocesses == -1 or args.nprocesses > 1):
             os.environ["OMP_NUM_THREADS"] = "1"
             os.environ["MKL_NUM_THREADS"] = "1"
@@ -122,5 +124,6 @@ if __name__ == "__main__":
             os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
             os.environ["NUMEXPR_NUM_THREADS"] = "1"
         
+        # The interpolation function is imported here so that the environment variables are set correctly
         from interpolation import interpolation
         interpolation(args.coin, tuple(args.coin_dim), tuple(args.regular_grid_dim), args.method, args.nprocesses)
