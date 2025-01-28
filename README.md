@@ -4,6 +4,7 @@ Project for the course Geometrical and 3D Computer Vision 2024/2025. Details in 
 
 ## Installation
 
+### Conda enviroment
 To set up the conda environment for this project, follow these steps:
 
 1. **Clone the repository:**
@@ -32,6 +33,10 @@ To download the data and create the folder:
 ```bash
 sh download_data.sh
 ```
+
+### Notes
+
+`download_RBF_interpolation.sh`, `RBF_interpolation` and `PTM_interpolation` allow simpler remote interpolation on my desktop from my laptop, they are not part of the project.
 
 ## Usage Instructions for `calibration.py`
 
