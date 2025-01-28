@@ -101,7 +101,7 @@ python3 src/analysis.py --coin 3 --interpolate --coin-dim 256 256 --regular-grid
 
 ## Usage `relighting.py`
 
-This script relight a coin using the data from a specified interpolation method.
+This script relights a coin using the data from a specified interpolation method.
 
 ```bash
 usage: relighting.py [-h] --coin {1,2,3,4} --method {RBF,PTM,RBF_cuda} 
