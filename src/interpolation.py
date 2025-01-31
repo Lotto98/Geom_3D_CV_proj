@@ -173,7 +173,7 @@ def interpolation(coin_number:int, coin_dim:Tuple[int, int], regular_grid_dim:Tu
             regular_grids[y, x] = regular_grid
             
     elif method == "PTM":
-        # Compute PTM coefficients
+        # Compute PTM coefficients: alphas
         coeff = compute_ptm_coefficients_2d(MLIC_resized, L_poses)
         
         # Render PTM for each pixel, using the regular grid directions

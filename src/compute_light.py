@@ -181,7 +181,9 @@ def detect_fiducial_marker(image:np.ndarray,
     # Step 1: Thresholding
     _, binary = cv.threshold(image_grey, threshold, 255, cv.THRESH_BINARY)
 
-    # Step 2: Morphological Operations (to remove noise)
+    # Step 2: Morphological Operations
+    # Dilation followed by Erosion: closing, to fill holes inside objects
+    # make contours more uniform
     kernel = cv.getStructuringElement(cv.MORPH_RECT, (2, 2))
     binary = cv.morphologyEx(binary, cv.MORPH_CLOSE, kernel)
 
@@ -193,6 +195,7 @@ def detect_fiducial_marker(image:np.ndarray,
         return detect_fiducial_marker(image, threshold=threshold-10, debug=debug, check_aspect_ratio=check_aspect_ratio)
 
     # Step 4: Simplify contour using Ramer-Douglas-Peucker algorithm
+    # remove points that contribute less to the contour
     detected_markers = {}
     for i, contour in enumerate(contours):
 
@@ -443,6 +446,8 @@ def calculateLightPosition(objectPoints:np.ndarray, imagePoints:np.ndarray,
         Q = np.column_stack([r1, r2, r3])
         
         # Ensure the rotation matrix is orthogonal
+        # by computing the SVD decomposition
+        # and reconstructing the rotation matrix
         U, _, Vt = np.linalg.svd(Q)
         R = U @ Vt
     
